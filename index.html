@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QR IMEI Converter</title>
+    <title>QR IMEI Converter - Macro Focus</title>
     <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
     <style>
         :root {
@@ -22,18 +22,18 @@
             flex-direction: column;
             align-items: center;
             min-height: 100vh;
-            padding: 20px;
+            padding: 10px;
             box-sizing: border-box;
         }
 
-        h2 { margin-bottom: 5px; color: var(--primary-color); }
-        .description { font-size: 14px; color: #888; margin-bottom: 20px; }
+        h2 { margin: 10px 0 5px 0; color: var(--primary-color); }
+        .description { font-size: 12px; color: #888; margin-bottom: 15px; text-align: center; }
 
         #video-container {
             position: relative;
             width: 100%;
-            max-width: 400px;
-            aspect-ratio: 3/4;
+            max-width: 380px;
+            aspect-ratio: 1/1; /* ปรับเป็นสี่เหลี่ยมจัตุรัสเพื่อบังคับให้ผู้ใช้ถือห่างขึ้นเล็กน้อย */
             background: #000;
             border-radius: 20px;
             overflow: hidden;
@@ -46,49 +46,37 @@
             object-fit: cover;
         }
 
-        #scanner-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: rgba(0,0,0,0.2);
-        }
-
         .focus-box {
-            width: 240px;
-            height: 240px;
-            border: 2px solid var(--primary-color);
-            border-radius: 15px;
-            position: relative;
-            box-shadow: 0 0 0 1000px rgba(0,0,0,0.5);
-        }
-
-        .focus-box::after {
-            content: "";
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 2px;
-            background: var(--primary-color);
-            box-shadow: 0 0 15px var(--primary-color);
-            animation: scan 2s infinite linear;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 180px; /* ลดขนาดกรอบเพื่อให้ผู้ใช้ถอยกล้องออกห่างบอร์ด ทำให้โฟกัสติดง่ายขึ้น */
+            height: 180px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            box-shadow: 0 0 0 1000px rgba(0,0,0,0.6);
         }
 
-        @keyframes scan {
-            0% { top: 0; }
-            50% { top: 100%; }
-            100% { top: 0; }
+        .zoom-control {
+            width: 100%;
+            max-width: 300px;
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
+
+        input[type=range] { flex: 1; }
 
         .control-panel {
             width: 100%;
-            max-width: 400px;
-            margin-top: 25px;
+            max-width: 380px;
             text-align: center;
         }
 
         button {
             width: 100%;
-            padding: 16px;
+            padding: 18px;
             font-size: 18px;
             font-weight: bold;
             background: var(--primary-color);
@@ -97,42 +85,28 @@
             border-radius: 12px;
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(0,123,255,0.3);
-            transition: 0.2s;
         }
 
-        button:active { transform: scale(0.98); background: #0056b3; }
-
         .result-container {
-            margin-top: 25px;
+            margin-top: 20px;
             width: 100%;
-            max-width: 400px;
             background: #1e1e1e;
             padding: 15px;
             border-radius: 12px;
-            border: 1px solid #333;
+            box-sizing: border-box;
         }
-
-        .result-label { font-size: 12px; color: #888; margin-bottom: 8px; }
 
         #client-id-box {
             width: 100%;
             background: #2d2d2d;
             border: 1px solid #444;
             color: #00ff00;
-            font-family: 'Courier New', monospace;
-            font-size: 20px;
-            font-weight: bold;
+            font-family: monospace;
+            font-size: 18px;
             padding: 12px;
             text-align: center;
             border-radius: 8px;
             box-sizing: border-box;
-            outline: none;
-        }
-
-        #status-msg {
-            margin-top: 10px;
-            font-size: 14px;
-            min-height: 20px;
         }
 
         canvas { display: none; }
@@ -140,23 +114,25 @@
 </head>
 <body>
 
-    <h2>AWDN Scanner</h2>
-    <p class="description">Scan QR to Generate Client ID</p>
+    <h2>AWDN Macro Scan</h2>
+    <p class="description">ถอยห่างจากวัตถุประมาณ 10-15 ซม. <br>หากภาพเบลอให้ใช้แถบซูมด้านล่างช่วย</p>
 
     <div id="video-container">
         <video id="webcam" autoplay playsinline muted></video>
-        <div id="scanner-overlay">
-            <div class="focus-box"></div>
-        </div>
+        <div class="focus-box"></div>
+    </div>
+
+    <div class="zoom-control">
+        <span>ซูม</span>
+        <input type="range" id="zoom-range" min="1" max="5" step="0.1" value="1">
     </div>
 
     <div class="control-panel">
         <button id="capture-btn">CAPTURE & CONVERT</button>
         
         <div class="result-container">
-            <div class="result-label">GENERATED CLIENT ID (COPIED)</div>
             <input type="text" id="client-id-box" readonly placeholder="AWDN_XXXXXXXXXXXX">
-            <div id="status-msg"></div>
+            <div id="status-msg" style="margin-top:10px; font-size:14px;"></div>
         </div>
     </div>
 
@@ -166,105 +142,96 @@
         const video = document.getElementById('webcam');
         const canvas = document.getElementById('proc-canvas');
         const btn = document.getElementById('capture-btn');
+        const zoomInput = document.getElementById('zoom-range');
         const clientIdBox = document.getElementById('client-id-box');
         const statusMsg = document.getElementById('status-msg');
+        let videoTrack = null;
 
-        // 1. เริ่มทำงานของกล้อง
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: "environment",
                         width: { ideal: 1920 },
-                        height: { ideal: 1080 }
+                        height: { ideal: 1080 },
+                        // เพิ่มความพยายามในการเรียกใช้โหมด Macro
+                        focusMode: { ideal: "continuous" }
                     }
                 });
                 video.srcObject = stream;
+                videoTrack = stream.getVideoTracks()[0];
 
-                // พยายามตั้งค่า Auto Focus (สำหรับ Android Chrome)
-                const track = stream.getVideoTracks()[0];
-                if (track.getCapabilities().focusMode?.includes('continuous')) {
-                    await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+                // ตรวจสอบและเปิดใช้งานฟีเจอร์ซูม/โฟกัส (เฉพาะเครื่องที่รองรับ)
+                const capabilities = videoTrack.getCapabilities();
+                if (capabilities.zoom) {
+                    zoomInput.min = capabilities.zoom.min;
+                    zoomInput.max = capabilities.zoom.max;
+                    zoomInput.step = capabilities.zoom.step;
+                } else {
+                    zoomInput.parentElement.style.display = 'none';
                 }
+
+                // สั่ง Focus ต่อเนื่อง
+                if (capabilities.focusMode?.includes('continuous')) {
+                    await videoTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+                }
+
             } catch (err) {
-                showStatus("❌ เข้าถึงกล้องไม่ได้: " + err.message, "error");
+                statusMsg.innerText = "❌ กล้อง Error: " + err.message;
             }
         }
 
-        // 2. ฟังก์ชันแปลงข้อมูลตาม Logic ภาษา C
+        // จัดการเรื่องการซูม
+        zoomInput.addEventListener('input', async () => {
+            if (videoTrack) {
+                await videoTrack.applyConstraints({ advanced: [{ zoom: zoomInput.value }] });
+            }
+        });
+
         function createUniqueClientId(deviceId) {
             try {
                 let number = BigInt(deviceId);
                 let bytes = new Uint8Array(6);
-                
                 bytes[0] = Number((number >> 40n) & 0xFFn);
                 bytes[1] = Number((number >> 32n) & 0xFFn);
                 bytes[2] = Number((number >> 24n) & 0xFFn);
                 bytes[3] = Number((number >> 16n) & 0xFFn);
                 bytes[4] = Number((number >> 8n) & 0xFFn);
                 bytes[5] = Number(number & 0xFFn);
-
-                const hexString = Array.from(bytes)
-                    .map(b => b.toString(16).toUpperCase().padStart(2, '0'))
-                    .join('');
-                
-                return "AWDN_" + hexString;
-            } catch (e) {
-                return null;
-            }
+                return "AWDN_" + Array.from(bytes).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join('');
+            } catch (e) { return null; }
         }
 
-        // 3. ฟังก์ชัน Copy อัตโนมัติ
-        async function copyToClipboard(text) {
-            try {
-                await navigator.clipboard.writeText(text);
-                return true;
-            } catch (err) {
-                // Fallback สำหรับบาง Browser
-                clientIdBox.select();
-                document.execCommand('copy');
-                return true;
-            }
-        }
-
-        function showStatus(msg, type) {
-            statusMsg.innerText = msg;
-            statusMsg.style.color = type === "error" ? "var(--error-color)" : "var(--success-color)";
-        }
-
-        // 4. เมื่อกดปุ่ม Capture
         btn.addEventListener('click', () => {
             const context = canvas.getContext('2d', { willReadFrequently: true });
+            // ใช้ความละเอียดสูงสุดจากกล้องจริง
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "dontInvert"
+            });
 
             if (code) {
-                // ดึง IMEI ออกจาก Text
                 const imeiMatch = code.data.match(/IMEI:(\d+);/);
-                
-                if (imeiMatch && imeiMatch[1]) {
-                    const imei = imeiMatch[1];
-                    const finalId = createUniqueClientId(imei);
-                    
-                    if (finalId) {
-                        clientIdBox.value = finalId;
-                        copyToClipboard(finalId);
-                        showStatus("✅ สแกนสำเร็จและคัดลอกแล้ว!", "success");
-                    }
+                if (imeiMatch) {
+                    const finalId = createUniqueClientId(imeiMatch[1]);
+                    clientIdBox.value = finalId;
+                    navigator.clipboard.writeText(finalId);
+                    statusMsg.innerText = "✅ สำเร็จ! คัดลอกแล้ว";
+                    statusMsg.style.color = "#28a745";
                 } else {
-                    showStatus("🔍 เจอ QR แต่ไม่พบข้อมูล IMEI", "error");
-                    clientIdBox.value = "";
+                    statusMsg.innerText = "🔍 ไม่พบ IMEI ใน QR นี้";
+                    statusMsg.style.color = "#dc3545";
                 }
             } else {
-                showStatus("❌ ไม่พบ QR Code ในภาพ (ลองปรับระยะห่าง)", "error");
+                statusMsg.innerText = "❌ ภาพไม่ชัด/ไม่พบ QR (ลองเลื่อนแถบซูม)";
+                statusMsg.style.color = "#dc3545";
             }
         });
 
-        // เริ่มรันกล้องเมื่อโหลดหน้าเว็บ
         initCamera();
     </script>
 </body>
