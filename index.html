@@ -200,15 +200,19 @@
     <!-- Modal: ตั้งค่า URL -->
     <div class="modal-bg" id="settings-modal">
         <div class="modal">
-            <h3>ตั้งค่า Google Apps Script URL</h3>
-            <small>
-                วาง URL ของ Web App ที่ Deploy แล้ว (ลงท้ายด้วย /exec)<br>
-                ดูวิธีตั้งค่า Apps Script ในไฟล์ Code.gs ที่ให้มาด้วยกัน
-            </small>
+            <h3>ตั้งค่า</h3>
+
+            <label style="display:block; font-size:13px; color:#aaa; margin-top:4px;">📱 ชื่อ Device (เครื่องที่สแกน)</label>
+            <input type="text" id="device-name-input" placeholder="เช่น iPhone-Som, Tablet-WH-01">
+            <small>ชื่อนี้จะถูกบันทึกลง Sheet ทุกครั้งที่สแกน เพื่อให้รู้ว่าใครสแกนเข้ามา</small>
+
+            <label style="display:block; font-size:13px; color:#aaa;">🔗 Google Apps Script URL</label>
             <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/AKfy.../exec">
-            <button id="save-url" class="small">บันทึก</button>
+            <small>วาง URL ของ Web App ที่ Deploy แล้ว (ลงท้ายด้วย /exec)</small>
+
+            <button id="save-url" class="small">บันทึกทั้งหมด</button>
             <button id="test-url" class="small gray">ทดสอบการเชื่อมต่อ</button>
-            <button id="reset-url" class="small gray">รีเซ็ตเป็น URL default</button>
+            <button id="reset-url" class="small gray">รีเซ็ต URL เป็น default</button>
             <button id="close-modal" class="small gray">ปิด</button>
         </div>
     </div>
@@ -234,6 +238,7 @@
         const settingsBtn = document.getElementById('settings-btn');
         const settingsModal = document.getElementById('settings-modal');
         const gasUrlInput = document.getElementById('gas-url-input');
+        const deviceNameInput = document.getElementById('device-name-input');
         const saveUrlBtn = document.getElementById('save-url');
         const testUrlBtn = document.getElementById('test-url');
         const resetUrlBtn = document.getElementById('reset-url');
@@ -244,12 +249,20 @@
         // ===== Storage helpers =====
         const STORAGE_URL_KEY = 'awdn_gas_url';
         const STORAGE_QUEUE_KEY = 'awdn_queue';
+        const STORAGE_DEVICE_KEY = 'awdn_device_name';
 
         // URL default (ใช้เมื่อผู้ใช้ยังไม่ได้ตั้งค่าเอง)
         const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyI1Bq7kGbonhQ2fR_xrvxXsTXYw4oTXqFWejpwJGIe6Fh4ij6yOpKMDaiWeNvvLBGKiw/exec';
 
         function getGasUrl() {
             return localStorage.getItem(STORAGE_URL_KEY) || DEFAULT_GAS_URL;
+        }
+        function getDeviceName() {
+            return localStorage.getItem(STORAGE_DEVICE_KEY) || '';
+        }
+        function setDeviceName(name) {
+            localStorage.setItem(STORAGE_DEVICE_KEY, name);
+            updateConnStatus();
         }
         function setGasUrl(url) {
             localStorage.setItem(STORAGE_URL_KEY, url);
@@ -267,15 +280,17 @@
         function updateConnStatus() {
             const url = getGasUrl();
             const customUrl = localStorage.getItem(STORAGE_URL_KEY);
+            const device = getDeviceName();
+            const devicePart = device ? ' • 📱 ' + device : ' • ⚠️ ยังไม่ตั้งชื่อ device';
             if (!url) {
                 connDot.className = 'dot warn';
                 connText.innerText = 'ยังไม่ได้ตั้งค่า Sheet';
             } else if (customUrl) {
-                connDot.className = 'dot ok';
-                connText.innerText = 'พร้อมส่ง (URL กำหนดเอง)';
+                connDot.className = device ? 'dot ok' : 'dot warn';
+                connText.innerText = 'URL เอง' + devicePart;
             } else {
-                connDot.className = 'dot ok';
-                connText.innerText = 'พร้อมส่ง (ใช้ URL default)';
+                connDot.className = device ? 'dot ok' : 'dot warn';
+                connText.innerText = 'URL default' + devicePart;
             }
         }
         function updateQueueUI() {
@@ -418,10 +433,15 @@
             // เตรียมข้อมูลส่ง Sheet
             const record = {
                 timestamp: new Date().toISOString(),
+                device: getDeviceName() || '(unknown)',
                 imei: imei,
                 awdn: awdn,
                 raw: code.data
             };
+
+            if (!getDeviceName()) {
+                sheetStatus.innerHTML = '<span style="color:#fa0;">⚠️ ยังไม่ตั้งชื่อ device (กดปุ่มเฟืองด้านล่าง)<br>จะบันทึกเป็น "(unknown)"</span>';
+            }
 
             if (!getGasUrl()) {
                 sheetStatus.innerHTML = '<span style="color:#fa0;">⚠️ ยังไม่ได้ตั้งค่า Google Sheet URL (กดปุ่มเฟืองด้านล่าง)</span>';
@@ -454,14 +474,17 @@
         settingsBtn.onclick = () => {
             // แสดง URL ที่ผู้ใช้ตั้งเองถ้ามี ไม่งั้นแสดง default
             gasUrlInput.value = localStorage.getItem(STORAGE_URL_KEY) || DEFAULT_GAS_URL;
+            deviceNameInput.value = getDeviceName();
             settingsModal.classList.add('show');
         };
         closeModalBtn.onclick = () => settingsModal.classList.remove('show');
         saveUrlBtn.onclick = () => {
             const url = gasUrlInput.value.trim();
+            const deviceName = deviceNameInput.value.trim();
             setGasUrl(url);
+            setDeviceName(deviceName);
             settingsModal.classList.remove('show');
-            sheetStatus.innerHTML = '<span style="color:#0f0;">✅ บันทึก URL แล้ว</span>';
+            sheetStatus.innerHTML = '<span style="color:#0f0;">✅ บันทึกการตั้งค่าแล้ว</span>';
         };
         testUrlBtn.onclick = async () => {
             const url = gasUrlInput.value.trim();
@@ -475,6 +498,7 @@
             testUrlBtn.innerText = 'กำลังทดสอบ...';
             const r = await sendToSheet({
                 timestamp: new Date().toISOString(),
+                device: (deviceNameInput.value.trim() || getDeviceName() || 'TEST_DEVICE'),
                 imei: 'TEST',
                 awdn: 'AWDN_TEST',
                 raw: 'connection_test'
