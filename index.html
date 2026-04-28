@@ -40,7 +40,6 @@
             margin-top: 8px; font-size: 11px; color: #666;
         }
         canvas { display: none; }
-        #hiddenFrame { display: none; }
     </style>
 </head>
 <body>
@@ -80,16 +79,6 @@
 
     <canvas id="c"></canvas>
 
-    <!-- Hidden iframe สำหรับรับการ submit form (เลี่ยงการ navigate หน้าหลัก) -->
-    <iframe id="hiddenFrame" name="hiddenFrame"></iframe>
-    
-    <!-- Hidden form สำหรับส่งข้อมูลไป Apps Script -->
-    <form id="submitForm" method="GET" target="hiddenFrame" action="">
-        <input type="hidden" name="imei" id="formImei">
-        <input type="hidden" name="awdn" id="formAwdn">
-        <input type="hidden" name="t" id="formT">
-    </form>
-
     <script>
         // ============================================
         // ⚠️ ใส่ URL ของ Google Apps Script Web App ที่นี่
@@ -105,8 +94,6 @@
         const sheetStatus = document.getElementById('sheet-status');
         const cacheInfo = document.getElementById('cache-info');
         const refreshBtn = document.getElementById('refreshBtn');
-        const submitForm = document.getElementById('submitForm');
-        const hiddenFrame = document.getElementById('hiddenFrame');
         let track = null;
         
         // เก็บ AWDN ทั้งหมดในชีท เพื่อเช็คซ้ำฝั่ง client
@@ -146,7 +133,8 @@
             
             try {
                 const url = SHEET_URL + "?action=list&t=" + Date.now();
-                const res = await fetch(url);
+                // เพิ่ม cache: 'no-store' กัน iOS cache
+                const res = await fetch(url, { cache: 'no-store' });
                 const data = await res.json();
                 
                 if (data.ok && Array.isArray(data.list)) {
@@ -164,36 +152,15 @@
             }
         }
 
-        // ส่งข้อมูลขึ้น Sheet ด้วย form submit ลง hidden iframe
-        // วิธีนี้ทำงานได้ทุก browser รวมถึง iOS Safari
+        // ส่งข้อมูลขึ้น Sheet ด้วย sendBeacon (ทำงานได้ทุก browser รวมถึง iOS)
         function sendToSheet(imei, awdn) {
-            return new Promise((resolve) => {
-                document.getElementById('formImei').value = imei;
-                document.getElementById('formAwdn').value = awdn;
-                document.getElementById('formT').value = Date.now();
-                submitForm.action = SHEET_URL;
-
-                // รอจน iframe โหลดเสร็จ = Apps Script ประมวลผลเสร็จ
-                let done = false;
-                const onLoad = () => {
-                    if (done) return;
-                    done = true;
-                    hiddenFrame.removeEventListener('load', onLoad);
-                    resolve();
-                };
-                hiddenFrame.addEventListener('load', onLoad);
-                
-                // timeout กันค้าง
-                setTimeout(() => {
-                    if (!done) {
-                        done = true;
-                        hiddenFrame.removeEventListener('load', onLoad);
-                        resolve();
-                    }
-                }, 15000);
-                
-                submitForm.submit();
-            });
+            const formData = new FormData();
+            formData.append('imei', imei);
+            formData.append('awdn', awdn);
+            
+            // sendBeacon รับประกันว่าจะส่ง browser จะ queue ไว้ส่งให้แน่นอน
+            const queued = navigator.sendBeacon(SHEET_URL, formData);
+            return queued;
         }
 
         document.getElementById('snap').onclick = async () => {
@@ -231,12 +198,17 @@
                         sheetStatus.innerHTML = "⏳ กำลังบันทึก...";
                         sheetStatus.style.color = "#888";
                         
-                        await sendToSheet(imei, res);
-                        awdnCache.add(res);
+                        const queued = sendToSheet(imei, res);
                         
-                        sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ";
-                        sheetStatus.style.color = "#0f0";
-                        cacheInfo.innerHTML = "📊 มีข้อมูลในชีท " + awdnCache.size + " รายการ";
+                        if (queued) {
+                            awdnCache.add(res);
+                            sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ";
+                            sheetStatus.style.color = "#0f0";
+                            cacheInfo.innerHTML = "📊 มีข้อมูลในชีท " + awdnCache.size + " รายการ";
+                        } else {
+                            sheetStatus.innerHTML = "❌ Browser ปฏิเสธ - ลองรีเฟรชหน้า";
+                            sheetStatus.style.color = "#f44";
+                        }
                     }
                 } else {
                     valBox.innerText = "--- ไม่พบ IMEI ---";
