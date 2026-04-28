@@ -2,64 +2,165 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>AWDN Precision Scan</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AWDN Scan</title>
     <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
     <style>
-        :root { --primary: #007bff; --bg: #0b0b0b; --card: #1e1e1e; }
+        :root {
+            --primary: #007bff;
+            --bg: #000;
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: var(--bg); color: white; margin: 0;
-            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+            font-family: sans-serif;
+            background: var(--bg);
+            color: white;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
         }
         #preview-wrap {
-            position: relative; width: 100%; max-width: 500px;
-            aspect-ratio: 1/1; overflow: hidden; background: #000;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 1/1;
+            overflow: hidden;
+            background: #222;
         }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
         .scanner-box {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 220px; height: 220px; border: 2px solid #00ff00;
-            border-radius: 16px; box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6);
-            pointer-events: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 150px;
+            height: 150px;
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+            box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.7);
         }
-        .scanner-box::after {
-            content: ""; position: absolute; width: 100%; height: 2px;
-            background: rgba(0, 255, 0, 0.6); top: 0; left: 0;
-            animation: scan 2s infinite linear;
+        .ui-panel {
+            width: 90%;
+            max-width: 400px;
+            padding: 20px 0;
+            text-align: center;
         }
-        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
-
-        .ui-panel { width: 90%; max-width: 400px; padding: 20px 0; text-align: center; }
-        .instructions { font-size: 13px; color: #888; margin-bottom: 15px; }
-        
-        input[type=range] { width: 100%; height: 35px; accent-color: var(--primary); margin: 10px 0; }
-        
+        .instructions {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+        input[type=range] {
+            width: 100%;
+            margin: 15px 0;
+            height: 25px;
+        }
         button {
-            width: 100%; padding: 18px; font-size: 18px; font-weight: bold;
-            background: var(--primary); color: white; border: none;
-            border-radius: 12px; cursor: pointer; transition: 0.2s;
-            -webkit-tap-highlight-color: transparent;
+            width: 100%;
+            padding: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 123, 255, 0.4);
         }
-        button:active { transform: scale(0.98); opacity: 0.9; }
-        button:disabled { background: #444; color: #888; }
-
+        button:active {
+            transform: scale(0.98);
+        }
+        button.small {
+            padding: 10px;
+            font-size: 14px;
+            box-shadow: none;
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+        button.gray {
+            background: #444;
+        }
         #result-display {
-            margin-top: 15px; background: var(--card); padding: 15px;
-            border-radius: 12px; border: 1px solid #333; text-align: center;
+            margin-top: 20px;
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            min-height: 50px;
+            word-break: break-all;
         }
-        #val { font-size: 24px; font-weight: bold; color: #00ff00; font-family: monospace; }
-        #msg { font-size: 14px; margin-top: 5px; color: #aaa; }
-        #time-log { font-size: 11px; color: #666; margin-top: 8px; }
-        canvas { display: none; }
+        canvas {
+            display: none;
+        }
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            padding: 8px 12px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .dot.ok { background: #0f0; }
+        .dot.warn { background: #fa0; }
+        .dot.err { background: #f33; }
+        .modal-bg {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-bg.show { display: flex; }
+        .modal {
+            background: #222;
+            padding: 20px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid #444;
+        }
+        .modal h3 { margin-top: 0; color: var(--primary); }
+        .modal input[type=text] {
+            width: 100%;
+            padding: 12px;
+            font-size: 14px;
+            background: #111;
+            color: white;
+            border: 1px solid #444;
+            border-radius: 8px;
+            margin: 8px 0;
+            box-sizing: border-box;
+        }
+        .modal small {
+            color: #888;
+            font-size: 11px;
+            display: block;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
     </style>
 </head>
 <body>
 
-    <div style="padding: 20px 10px;">
-        <h2 style="margin:0; color:var(--primary); font-size: 22px;">AWDN Scanner</h2>
+    <div style="padding: 15px; text-align: center;">
+        <h2 style="margin:0; color:var(--primary);">AWDN Precision Scan</h2>
     </div>
 
     <div id="preview-wrap">
@@ -68,65 +169,152 @@
     </div>
 
     <div class="ui-panel">
-        <p class="instructions">ถอยห่าง 30 ซม. แล้วใช้ <b>"แถบซูม"</b> ขยายภาพให้เข้ากรอบ</p>
+        <!-- แถบสถานะการเชื่อมต่อ Google Sheet -->
+        <div class="status-bar">
+            <span><span id="conn-dot" class="dot warn"></span><span id="conn-text">ยังไม่ได้ตั้งค่า Sheet</span></span>
+            <span id="queue-info" style="color:#888;"></span>
+        </div>
 
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-            <span style="font-size:12px; font-weight:bold;">ZOOM</span>
+        <p class="instructions">
+            <b>เทคนิคแก้ภาพเบลอ:</b> ถอยมือถือห่างออกมา (30 ซม.) <br>
+            แล้วใช้ "แถบซูม" ขยายให้ QR เข้ามาในกรอบเขียว
+        </p>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span>ซูม</span>
             <input type="range" id="zoom" min="1" max="1" step="0.1" value="1">
         </div>
 
-        <button id="snap">สแกนและบันทึก</button>
+        <button id="snap">CAPTURE & CONVERT</button>
 
         <div id="result-display">
-            <div id="val">---</div>
-            <div id="msg">พร้อมใช้งาน</div>
-            <div id="time-log"></div>
+            <div id="val" style="color:#0f0; font-family:monospace; font-size:18px;">--- รอสแกน ---</div>
+            <div id="msg" style="font-size:12px; margin-top:8px; color:#888;"></div>
+            <div id="sheet-status" style="font-size:12px; margin-top:8px;"></div>
+        </div>
+
+        <button class="small gray" id="settings-btn">⚙️ ตั้งค่า Google Sheet URL</button>
+        <button class="small gray" id="retry-btn" style="display:none;">🔄 ส่งคิวที่ค้างใหม่ (<span id="retry-count">0</span>)</button>
+    </div>
+
+    <!-- Modal: ตั้งค่า URL -->
+    <div class="modal-bg" id="settings-modal">
+        <div class="modal">
+            <h3>ตั้งค่า Google Apps Script URL</h3>
+            <small>
+                วาง URL ของ Web App ที่ Deploy แล้ว (ลงท้ายด้วย /exec)<br>
+                ดูวิธีตั้งค่า Apps Script ในไฟล์ Code.gs ที่ให้มาด้วยกัน
+            </small>
+            <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/AKfy.../exec">
+            <button id="save-url" class="small">บันทึก</button>
+            <button id="test-url" class="small gray">ทดสอบการเชื่อมต่อ</button>
+            <button id="reset-url" class="small gray">รีเซ็ตเป็น URL default</button>
+            <button id="close-modal" class="small gray">ปิด</button>
         </div>
     </div>
 
     <canvas id="c"></canvas>
 
     <script>
-        // 1. ใส่ URL ของ Apps Script ที่ได้จากการ Deploy (ต้องลงท้ายด้วย /exec)
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbziGDKazd7VVy6W298uLd7pynqa_FGmqrC0fX-zaQR81Xfi7TC1SNR7mA_IWiCnlMaoJA/exec";
-
+        // ===== Element refs =====
         const video = document.getElementById('v');
         const canvas = document.getElementById('c');
         const zoomInput = document.getElementById('zoom');
         const valBox = document.getElementById('val');
         const msgBox = document.getElementById('msg');
-        const timeLog = document.getElementById('time-log');
+        const sheetStatus = document.getElementById('sheet-status');
         const snapBtn = document.getElementById('snap');
+        const connDot = document.getElementById('conn-dot');
+        const connText = document.getElementById('conn-text');
+        const queueInfo = document.getElementById('queue-info');
+        const retryBtn = document.getElementById('retry-btn');
+        const retryCount = document.getElementById('retry-count');
+
+        // Modal
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const gasUrlInput = document.getElementById('gas-url-input');
+        const saveUrlBtn = document.getElementById('save-url');
+        const testUrlBtn = document.getElementById('test-url');
+        const resetUrlBtn = document.getElementById('reset-url');
+        const closeModalBtn = document.getElementById('close-modal');
 
         let track = null;
 
-        // เริ่มกล้อง
-        async function initCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
-                });
-                video.srcObject = stream;
-                
-                track = stream.getVideoTracks()[0];
-                const caps = track.getCapabilities ? track.getCapabilities() : {};
-                if (caps.zoom) {
-                    zoomInput.min = caps.zoom.min;
-                    zoomInput.max = caps.zoom.max;
-                    zoomInput.step = caps.zoom.step;
-                    zoomInput.value = 1;
-                }
-            } catch (err) {
-                msgBox.innerText = "❌ ไม่สามารถเข้าถึงกล้องได้: " + err.message;
+        // ===== Storage helpers =====
+        const STORAGE_URL_KEY = 'awdn_gas_url';
+        const STORAGE_QUEUE_KEY = 'awdn_queue';
+
+        // URL default (ใช้เมื่อผู้ใช้ยังไม่ได้ตั้งค่าเอง)
+        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyI1Bq7kGbonhQ2fR_xrvxXsTXYw4oTXqFWejpwJGIe6Fh4ij6yOpKMDaiWeNvvLBGKiw/exec';
+
+        function getGasUrl() {
+            return localStorage.getItem(STORAGE_URL_KEY) || DEFAULT_GAS_URL;
+        }
+        function setGasUrl(url) {
+            localStorage.setItem(STORAGE_URL_KEY, url);
+            updateConnStatus();
+        }
+        function getQueue() {
+            try { return JSON.parse(localStorage.getItem(STORAGE_QUEUE_KEY) || '[]'); }
+            catch { return []; }
+        }
+        function setQueue(q) {
+            localStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(q));
+            updateQueueUI();
+        }
+
+        function updateConnStatus() {
+            const url = getGasUrl();
+            const customUrl = localStorage.getItem(STORAGE_URL_KEY);
+            if (!url) {
+                connDot.className = 'dot warn';
+                connText.innerText = 'ยังไม่ได้ตั้งค่า Sheet';
+            } else if (customUrl) {
+                connDot.className = 'dot ok';
+                connText.innerText = 'พร้อมส่ง (URL กำหนดเอง)';
+            } else {
+                connDot.className = 'dot ok';
+                connText.innerText = 'พร้อมส่ง (ใช้ URL default)';
+            }
+        }
+        function updateQueueUI() {
+            const q = getQueue();
+            if (q.length > 0) {
+                queueInfo.innerText = '⏳ คิวค้าง: ' + q.length;
+                retryBtn.style.display = 'block';
+                retryCount.innerText = q.length;
+            } else {
+                queueInfo.innerText = '';
+                retryBtn.style.display = 'none';
             }
         }
 
+        // ===== กล้อง + ซูม =====
+        navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment", width: 1920, height: 1080 }
+        }).then(stream => {
+            video.srcObject = stream;
+            track = stream.getVideoTracks()[0];
+            const caps = track.getCapabilities ? track.getCapabilities() : {};
+            if (caps.zoom) {
+                zoomInput.min = caps.zoom.min;
+                zoomInput.max = caps.zoom.max;
+                zoomInput.step = caps.zoom.step;
+                zoomInput.value = 1;
+            }
+        }).catch(err => {
+            valBox.innerText = "ไม่สามารถเปิดกล้องได้";
+            msgBox.innerText = err.message;
+        });
+
         zoomInput.oninput = () => {
-            if (track && track.applyConstraints) {
+            if (track) {
                 track.applyConstraints({ advanced: [{ zoom: zoomInput.value }] });
             }
         };
 
+        // ===== แปลง IMEI → AWDN =====
         function convertToAWDN(imei) {
             try {
                 let n = BigInt(imei);
@@ -134,64 +322,207 @@
                 for (let i = 0; i < 6; i++) {
                     bytes[i] = Number((n >> BigInt((5 - i) * 8)) & 0xFFn);
                 }
-                return "AWDN_" + Array.from(bytes).map(x => x.toString(16).toUpperCase().padStart(2, '0')).join('');
-            } catch (e) { return null; }
+                return "AWDN_" + Array.from(bytes)
+                    .map(x => x.toString(16).toUpperCase().padStart(2, '0'))
+                    .join('');
+            } catch (e) {
+                return null;
+            }
         }
 
-        snapBtn.onclick = async () => {
-            if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+        // ===== ส่งข้อมูลไป Google Sheet =====
+        // ใช้ Content-Type: text/plain เพื่อหลีกเลี่ยง CORS preflight
+        // (รองรับทั้ง iOS Safari, Chrome Android, Firefox, Edge)
+        async function sendToSheet(record) {
+            const url = getGasUrl();
+            if (!url) {
+                return { ok: false, reason: 'ยังไม่ได้ตั้งค่า URL' };
+            }
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    redirect: 'follow',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(record)
+                });
+                if (!res.ok) {
+                    return { ok: false, reason: 'HTTP ' + res.status };
+                }
+                const text = await res.text();
+                let data;
+                try { data = JSON.parse(text); }
+                catch { return { ok: false, reason: 'ตอบกลับไม่ใช่ JSON' }; }
+                if (data.status === 'ok') return { ok: true };
+                return { ok: false, reason: data.message || 'unknown' };
+            } catch (err) {
+                return { ok: false, reason: err.message || 'network error' };
+            }
+        }
 
-            valBox.innerText = "...";
-            msgBox.innerText = "กำลังประมวลผล...";
-            snapBtn.disabled = true;
+        // ส่งคิวที่ค้างทั้งหมด
+        async function flushQueue() {
+            const q = getQueue();
+            if (q.length === 0) return { sent: 0, failed: 0 };
+            const remaining = [];
+            let sent = 0;
+            for (const item of q) {
+                const r = await sendToSheet(item);
+                if (r.ok) sent++;
+                else remaining.push(item);
+            }
+            setQueue(remaining);
+            return { sent, failed: remaining.length };
+        }
+
+        // ===== ปุ่มสแกน =====
+        snapBtn.onclick = async () => {
+            valBox.innerText = "กำลังประมวลผล...";
+            valBox.style.color = "#888";
+            msgBox.innerText = "";
+            sheetStatus.innerText = "";
 
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             ctx.drawImage(video, 0, 0);
 
-            // สแกนเฉพาะบริเวณกรอบกลาง (60% ของพื้นที่)
-            const scanSize = Math.min(canvas.width, canvas.height) * 0.6;
+            const scanSize = Math.min(canvas.width, canvas.height) * 0.5;
             const sx = (canvas.width - scanSize) / 2;
             const sy = (canvas.height - scanSize) / 2;
+
             const imgData = ctx.getImageData(sx, sy, scanSize, scanSize);
-            
-            const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
+            const code = jsQR(imgData.data, imgData.width, imgData.height, {
+                inversionAttempts: "dontInvert"
+            });
 
-            if (code && code.data.includes("IMEI:")) {
-                const match = code.data.match(/IMEI:(\d+);/);
-                if (match) {
-                    const imei = match[1];
-                    const awdn = convertToAWDN(imei);
-                    
-                    valBox.innerText = awdn;
-                    msgBox.innerText = "☁️ กำลังบันทึกลง Google Sheets...";
+            if (!code) {
+                valBox.innerText = "--- สแกนไม่สำเร็จ ---";
+                msgBox.innerText = "❌ ภาพยังไม่ชัด หรือ QR ไม่อยู่ในกรอบ\nลองถอยห่างอีกนิดแล้วใช้แถบซูมช่วย";
+                return;
+            }
 
-                    try {
-                        // ส่งข้อมูลไปยัง Apps Script ด้วยรูปแบบ JSON
-                        await fetch(SCRIPT_URL, {
-                            method: "POST",
-                            mode: "no-cors", // สำคัญมากสำหรับ Apps Script
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ imei: imei, awdn: awdn })
-                        });
-                        
-                        msgBox.innerText = "✅ บันทึกสำเร็จ (IMEI: " + imei + ")";
-                        timeLog.innerText = "บันทึกล่าสุด: " + new Date().toLocaleTimeString('th-TH');
-                        navigator.clipboard.writeText(awdn);
-                    } catch (e) {
-                        msgBox.innerText = "⚠️ สแกนติด แต่บันทึกล้มเหลว: " + e.message;
+            const match = code.data.match(/IMEI:(\d+);/);
+            if (!match) {
+                valBox.innerText = "--- ไม่พบ IMEI ---";
+                msgBox.innerText = "🔍 พบ QR แต่ไม่มีข้อมูล IMEI ตามรูปแบบที่กำหนด";
+                return;
+            }
+
+            const imei = match[1];
+            const awdn = convertToAWDN(imei);
+            valBox.innerText = awdn;
+            valBox.style.color = "#0f0";
+            try { await navigator.clipboard.writeText(awdn); } catch {}
+            msgBox.innerText = "✅ คัดลอกแล้ว (IMEI: " + imei + ")";
+
+            // เตรียมข้อมูลส่ง Sheet
+            const record = {
+                timestamp: new Date().toISOString(),
+                imei: imei,
+                awdn: awdn,
+                raw: code.data
+            };
+
+            if (!getGasUrl()) {
+                sheetStatus.innerHTML = '<span style="color:#fa0;">⚠️ ยังไม่ได้ตั้งค่า Google Sheet URL (กดปุ่มเฟืองด้านล่าง)</span>';
+                return;
+            }
+
+            sheetStatus.innerHTML = '<span style="color:#888;">📤 กำลังส่งไป Google Sheet...</span>';
+            const result = await sendToSheet(record);
+
+            if (result.ok) {
+                sheetStatus.innerHTML = '<span style="color:#0f0;">✅ บันทึกลง Google Sheet แล้ว</span>';
+                // ลองส่งคิวที่ค้างต่อ ถ้ามี
+                const q = getQueue();
+                if (q.length > 0) {
+                    const flushed = await flushQueue();
+                    if (flushed.sent > 0) {
+                        sheetStatus.innerHTML += '<br><span style="color:#0f0;">+ ส่งคิวค้างเพิ่ม ' + flushed.sent + ' รายการ</span>';
                     }
                 }
             } else {
-                valBox.innerText = "---";
-                msgBox.innerText = "❌ ไม่พบ QR หรือภาพไม่ชัด";
+                // เก็บเข้าคิวเพื่อส่งใหม่ภายหลัง
+                const q = getQueue();
+                q.push(record);
+                setQueue(q);
+                sheetStatus.innerHTML = '<span style="color:#fa0;">⚠️ ส่งไม่สำเร็จ (' + result.reason + ')<br>เก็บเข้าคิวรอส่งใหม่อัตโนมัติ</span>';
             }
-            
-            snapBtn.disabled = false;
         };
 
-        initCamera();
+        // ===== Settings modal =====
+        settingsBtn.onclick = () => {
+            // แสดง URL ที่ผู้ใช้ตั้งเองถ้ามี ไม่งั้นแสดง default
+            gasUrlInput.value = localStorage.getItem(STORAGE_URL_KEY) || DEFAULT_GAS_URL;
+            settingsModal.classList.add('show');
+        };
+        closeModalBtn.onclick = () => settingsModal.classList.remove('show');
+        saveUrlBtn.onclick = () => {
+            const url = gasUrlInput.value.trim();
+            setGasUrl(url);
+            settingsModal.classList.remove('show');
+            sheetStatus.innerHTML = '<span style="color:#0f0;">✅ บันทึก URL แล้ว</span>';
+        };
+        testUrlBtn.onclick = async () => {
+            const url = gasUrlInput.value.trim();
+            if (!url) {
+                alert('กรุณากรอก URL ก่อน');
+                return;
+            }
+            // บันทึกชั่วคราวเพื่อทดสอบ
+            const oldUrl = getGasUrl();
+            setGasUrl(url);
+            testUrlBtn.innerText = 'กำลังทดสอบ...';
+            const r = await sendToSheet({
+                timestamp: new Date().toISOString(),
+                imei: 'TEST',
+                awdn: 'AWDN_TEST',
+                raw: 'connection_test'
+            });
+            if (r.ok) {
+                alert('✅ เชื่อมต่อสำเร็จ! ลองเปิด Google Sheet ดูจะเห็นแถวทดสอบเพิ่มเข้ามา');
+            } else {
+                alert('❌ เชื่อมต่อไม่สำเร็จ: ' + r.reason + '\n\nตรวจสอบว่า:\n1. Deploy เป็น Web App แล้ว\n2. Access = "Anyone"\n3. URL ลงท้ายด้วย /exec');
+                setGasUrl(oldUrl);
+            }
+            testUrlBtn.innerText = 'ทดสอบการเชื่อมต่อ';
+        };
+
+        resetUrlBtn.onclick = () => {
+            if (confirm('ลบ URL ที่ตั้งเอง และกลับมาใช้ URL default?')) {
+                localStorage.removeItem(STORAGE_URL_KEY);
+                gasUrlInput.value = '';
+                updateConnStatus();
+                sheetStatus.innerHTML = '<span style="color:#0f0;">✅ รีเซ็ตเป็น URL default แล้ว</span>';
+                settingsModal.classList.remove('show');
+            }
+        };
+
+        // ปุ่ม retry คิว
+        retryBtn.onclick = async () => {
+            retryBtn.disabled = true;
+            retryBtn.innerText = 'กำลังส่ง...';
+            const r = await flushQueue();
+            retryBtn.disabled = false;
+            if (r.sent > 0) {
+                sheetStatus.innerHTML = '<span style="color:#0f0;">✅ ส่งคิวค้างได้ ' + r.sent + ' รายการ</span>';
+            }
+            if (r.failed > 0) {
+                sheetStatus.innerHTML += '<br><span style="color:#fa0;">⚠️ ยังเหลืออีก ' + r.failed + ' รายการ</span>';
+            }
+            updateQueueUI();
+        };
+
+        // ===== Auto-flush เมื่อกลับมาออนไลน์ =====
+        window.addEventListener('online', flushQueue);
+
+        // เริ่มต้น
+        updateConnStatus();
+        updateQueueUI();
+        // ลองล้างคิวตอนโหลดหน้า ถ้ามี URL
+        if (getGasUrl()) {
+            flushQueue();
+        }
     </script>
 </body>
 </html>
