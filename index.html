@@ -82,9 +82,11 @@
 
     <iframe id="hiddenFrame" name="hiddenFrame"></iframe>
     
-    <form id="submitForm" method="POST" target="hiddenFrame" action="">
+    <!-- ใช้ method="GET" - iOS รองรับ navigation แบบนี้แน่นอน -->
+    <form id="submitForm" method="GET" target="hiddenFrame" action="">
         <input type="hidden" name="imei" id="formImei">
         <input type="hidden" name="awdn" id="formAwdn">
+        <input type="hidden" name="t" id="formT">
     </form>
 
     <script>
@@ -134,7 +136,6 @@
             } catch(e) { return null; }
         }
 
-        // โหลดรายการ AWDN จากชีท (เพิ่ม random param เพื่อ bypass cache)
         async function loadAwdnList() {
             try {
                 const url = SHEET_URL 
@@ -166,12 +167,13 @@
             }
         }
 
-        // ส่งข้อมูลด้วย form POST + รอ iframe load event
-        // เมื่อ iframe load = Apps Script ตอบกลับครบ = บันทึกเสร็จแล้ว
+        // ส่งข้อมูลด้วย form GET ลง hidden iframe
+        // iOS รองรับ navigation แบบนี้ 100%
         function sendToSheet(imei, awdn) {
             return new Promise((resolve, reject) => {
                 document.getElementById('formImei').value = imei;
                 document.getElementById('formAwdn').value = awdn;
+                document.getElementById('formT').value = Date.now();
                 submitForm.action = SHEET_URL;
 
                 let done = false;
@@ -183,7 +185,6 @@
                 };
                 hiddenFrame.addEventListener('load', onLoad);
                 
-                // timeout 20 วินาที = ส่งล้มเหลว
                 setTimeout(() => {
                     if (!done) {
                         done = true;
@@ -223,7 +224,6 @@
                     navigator.clipboard.writeText(res);
                     msgBox.innerText = "✅ คัดลอกแล้ว (IMEI: " + imei + ")";
 
-                    // เช็คซ้ำจาก cache
                     if (awdnCache.has(res)) {
                         sheetStatus.innerHTML = "⚠️ AWDN นี้มีในชีทแล้ว ไม่บันทึกซ้ำ";
                         sheetStatus.style.color = "#ff9800";
@@ -234,17 +234,13 @@
                     sheetStatus.style.color = "#888";
                     
                     try {
-                        // ส่งข้อมูล - iframe load = บันทึกเสร็จแล้ว
                         await sendToSheet(imei, res);
-                        
-                        // เพิ่มเข้า cache (ไม่ต้อง verify เพราะ iframe load ยืนยันแล้ว)
                         awdnCache.add(res);
-                        
                         sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ";
                         sheetStatus.style.color = "#0f0";
                         cacheInfo.innerHTML = "📊 มีข้อมูลในชีท " + awdnCache.size + " รายการ";
                     } catch (err) {
-                        sheetStatus.innerHTML = "❌ Timeout - ส่งช้าผิดปกติ ลองใหม่";
+                        sheetStatus.innerHTML = "❌ Timeout - ลองใหม่";
                         sheetStatus.style.color = "#f44";
                     }
                 } else {
