@@ -40,6 +40,7 @@
             margin-top: 8px; font-size: 11px; color: #666;
         }
         canvas { display: none; }
+        #hiddenFrame { display: none; }
     </style>
 </head>
 <body>
@@ -79,6 +80,15 @@
 
     <canvas id="c"></canvas>
 
+    <!-- Hidden iframe สำหรับรับ form submit -->
+    <iframe id="hiddenFrame" name="hiddenFrame"></iframe>
+    
+    <!-- Hidden form ใช้ POST เพื่อเลี่ยง iOS GET cache -->
+    <form id="submitForm" method="POST" target="hiddenFrame" action="">
+        <input type="hidden" name="imei" id="formImei">
+        <input type="hidden" name="awdn" id="formAwdn">
+    </form>
+
     <script>
         // ============================================
         // ⚠️ ใส่ URL ของ Google Apps Script Web App ที่นี่
@@ -94,9 +104,9 @@
         const sheetStatus = document.getElementById('sheet-status');
         const cacheInfo = document.getElementById('cache-info');
         const refreshBtn = document.getElementById('refreshBtn');
+        const submitForm = document.getElementById('submitForm');
+        const hiddenFrame = document.getElementById('hiddenFrame');
         let track = null;
-        
-        // เก็บ AWDN ทั้งหมดในชีท เพื่อเช็คซ้ำฝั่ง client
         let awdnCache = new Set();
 
         navigator.mediaDevices.getUserMedia({ 
@@ -126,41 +136,61 @@
             } catch(e) { return null; }
         }
 
-        // โหลดรายการ AWDN ที่มีอยู่แล้วในชีท
+        // โหลดรายการ AWDN จากชีท
         async function loadAwdnList() {
-            sheetStatus.innerHTML = "⏳ กำลังโหลดข้อมูลจาก Sheet...";
-            sheetStatus.style.color = "#888";
-            
             try {
                 const url = SHEET_URL + "?action=list&t=" + Date.now();
-                // เพิ่ม cache: 'no-store' กัน iOS cache
                 const res = await fetch(url, { cache: 'no-store' });
                 const data = await res.json();
                 
                 if (data.ok && Array.isArray(data.list)) {
                     awdnCache = new Set(data.list);
-                    sheetStatus.innerHTML = "✅ พร้อมสแกน";
-                    sheetStatus.style.color = "#0f0";
                     cacheInfo.innerHTML = "📊 มีข้อมูลในชีท " + awdnCache.size + " รายการ";
-                } else {
-                    throw new Error("ข้อมูลไม่ถูกต้อง");
+                    return true;
                 }
-            } catch (err) {
+            } catch (err) {}
+            return false;
+        }
+
+        async function initLoad() {
+            sheetStatus.innerHTML = "⏳ กำลังโหลดข้อมูลจาก Sheet...";
+            sheetStatus.style.color = "#888";
+            const ok = await loadAwdnList();
+            if (ok) {
+                sheetStatus.innerHTML = "✅ พร้อมสแกน";
+                sheetStatus.style.color = "#0f0";
+            } else {
                 sheetStatus.innerHTML = "⚠️ โหลดข้อมูลเดิมไม่สำเร็จ";
                 sheetStatus.style.color = "#ff9800";
-                cacheInfo.innerHTML = "";
             }
         }
 
-        // ส่งข้อมูลขึ้น Sheet ด้วย sendBeacon (ทำงานได้ทุก browser รวมถึง iOS)
+        // ส่งข้อมูลด้วย form POST + รอ iframe load (เสถียรบน iOS)
         function sendToSheet(imei, awdn) {
-            const formData = new FormData();
-            formData.append('imei', imei);
-            formData.append('awdn', awdn);
-            
-            // sendBeacon รับประกันว่าจะส่ง browser จะ queue ไว้ส่งให้แน่นอน
-            const queued = navigator.sendBeacon(SHEET_URL, formData);
-            return queued;
+            return new Promise((resolve) => {
+                document.getElementById('formImei').value = imei;
+                document.getElementById('formAwdn').value = awdn;
+                submitForm.action = SHEET_URL;
+
+                let done = false;
+                const onLoad = () => {
+                    if (done) return;
+                    done = true;
+                    hiddenFrame.removeEventListener('load', onLoad);
+                    resolve();
+                };
+                hiddenFrame.addEventListener('load', onLoad);
+                
+                setTimeout(() => {
+                    if (!done) {
+                        done = true;
+                        hiddenFrame.removeEventListener('load', onLoad);
+                        resolve();
+                    }
+                }, 20000);
+                
+                submitForm.submit();
+            });
         }
 
         document.getElementById('snap').onclick = async () => {
@@ -190,25 +220,32 @@
                     navigator.clipboard.writeText(res);
                     msgBox.innerText = "✅ คัดลอกแล้ว (IMEI: " + imei + ")";
 
-                    // เช็คซ้ำจาก cache ฝั่ง client
+                    // เช็คซ้ำจาก cache
                     if (awdnCache.has(res)) {
                         sheetStatus.innerHTML = "⚠️ AWDN นี้มีในชีทแล้ว ไม่บันทึกซ้ำ";
                         sheetStatus.style.color = "#ff9800";
+                        return;
+                    }
+
+                    sheetStatus.innerHTML = "⏳ กำลังบันทึก...";
+                    sheetStatus.style.color = "#888";
+                    
+                    // ส่งข้อมูล
+                    await sendToSheet(imei, res);
+                    
+                    // รอเล็กน้อยให้ Sheet sync
+                    sheetStatus.innerHTML = "⏳ กำลังตรวจสอบ...";
+                    await new Promise(r => setTimeout(r, 1500));
+                    
+                    // VERIFY: โหลด list ใหม่จาก Sheet จริง เพื่อยืนยันว่าข้อมูลเข้าหรือไม่
+                    await loadAwdnList();
+                    
+                    if (awdnCache.has(res)) {
+                        sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ (ยืนยันแล้ว)";
+                        sheetStatus.style.color = "#0f0";
                     } else {
-                        sheetStatus.innerHTML = "⏳ กำลังบันทึก...";
-                        sheetStatus.style.color = "#888";
-                        
-                        const queued = sendToSheet(imei, res);
-                        
-                        if (queued) {
-                            awdnCache.add(res);
-                            sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ";
-                            sheetStatus.style.color = "#0f0";
-                            cacheInfo.innerHTML = "📊 มีข้อมูลในชีท " + awdnCache.size + " รายการ";
-                        } else {
-                            sheetStatus.innerHTML = "❌ Browser ปฏิเสธ - ลองรีเฟรชหน้า";
-                            sheetStatus.style.color = "#f44";
-                        }
+                        sheetStatus.innerHTML = "❌ ส่งแล้วแต่ข้อมูลไม่เข้า Sheet - ลองใหม่";
+                        sheetStatus.style.color = "#f44";
                     }
                 } else {
                     valBox.innerText = "--- ไม่พบ IMEI ---";
@@ -220,10 +257,15 @@
             }
         };
 
-        refreshBtn.onclick = loadAwdnList;
+        refreshBtn.onclick = async () => {
+            sheetStatus.innerHTML = "⏳ กำลังรีเฟรช...";
+            sheetStatus.style.color = "#888";
+            const ok = await loadAwdnList();
+            sheetStatus.innerHTML = ok ? "✅ รีเฟรชสำเร็จ" : "❌ รีเฟรชไม่สำเร็จ";
+            sheetStatus.style.color = ok ? "#0f0" : "#f44";
+        };
         
-        // โหลดข้อมูลครั้งแรก
-        loadAwdnList();
+        initLoad();
     </script>
 </body>
 </html>
