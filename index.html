@@ -345,6 +345,12 @@
             }
         }
 
+        // ===== คืนค่า timestamp เป็นเวลาไทย format: YYYY-MM-DD HH:MM:SS =====
+        // ใช้ sv-SE locale เพราะผลิต format ISO-like ที่ sort ได้ตรง ๆ
+        function getThaiTimestamp() {
+            return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' });
+        }
+
         // ===== ส่งข้อมูลไป Google Sheet =====
         // ใช้ Content-Type: text/plain เพื่อหลีกเลี่ยง CORS preflight
         // (รองรับทั้ง iOS Safari, Chrome Android, Firefox, Edge)
@@ -444,9 +450,9 @@
             try { await navigator.clipboard.writeText(awdn); } catch {}
             msgBox.innerText = "✅ คัดลอกแล้ว (IMEI: " + imei + ")";
 
-            // เตรียมข้อมูลส่ง Sheet
+            // เตรียมข้อมูลส่ง Sheet (timestamp เป็นเวลาไทย)
             const record = {
-                timestamp: new Date().toISOString(),
+                timestamp: getThaiTimestamp(),
                 device: getDeviceName() || '(unknown)',
                 imei: imei,
                 awdn: awdn,
@@ -537,7 +543,7 @@
             setGasUrl(url);
             testUrlBtn.innerText = 'กำลังทดสอบ...';
             const r = await sendToSheet({
-                timestamp: new Date().toISOString(),
+                timestamp: getThaiTimestamp(),
                 device: (deviceNameInput.value.trim() || getDeviceName() || 'TEST_DEVICE'),
                 imei: 'TEST',
                 awdn: 'AWDN_TEST',
