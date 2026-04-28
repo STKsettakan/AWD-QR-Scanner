@@ -1,46 +1,92 @@
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AWDN Scan GG Save</title>
+    <title>AWDN Scan</title>
     <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
     <style>
-        :root { --primary: #007bff; --bg: #000; }
-        body { font-family: sans-serif; background: var(--bg); color: white; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        #preview-wrap { position: relative; width: 100%; max-width: 400px; aspect-ratio: 1/1; overflow: hidden; background: #222; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        .scanner-box { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 150px; height: 150px; border: 2px solid #00ff00; border-radius: 8px;
-            box-shadow: 0 0 0 2000px rgba(0,0,0,0.7);
+        :root {
+            --primary: #007bff;
+            --bg: #000;
         }
-        .ui-panel { width: 90%; max-width: 400px; padding: 20px 0; text-align: center; }
-        .instructions { font-size: 13px; color: #aaa; margin-bottom: 15px; line-height: 1.4; }
-        input[type=range] { width: 100%; margin: 15px 0; height: 25px; }
-        button { 
-            width: 100%; padding: 20px; font-size: 20px; font-weight: bold;
-            background: var(--primary); color: white; border: none; border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0,123,255,0.4);
+        body {
+            font-family: sans-serif;
+            background: var(--bg);
+            color: white;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
         }
-        button:active { transform: scale(0.98); }
-        button.refresh-btn {
-            margin-top: 10px; padding: 10px; font-size: 14px;
-            background: #444; box-shadow: none;
+        #preview-wrap {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 1/1;
+            overflow: hidden;
+            background: #222;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .scanner-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 150px;
+            height: 150px;
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+            box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.7);
+        }
+        .ui-panel {
+            width: 90%;
+            max-width: 400px;
+            padding: 20px 0;
+            text-align: center;
+        }
+        .instructions {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+        input[type=range] {
+            width: 100%;
+            margin: 15px 0;
+            height: 25px;
+        }
+        button {
+            width: 100%;
+            padding: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 123, 255, 0.4);
+        }
+        button:active {
+            transform: scale(0.98);
         }
         #result-display {
-            margin-top: 20px; background: #1a1a1a; padding: 15px; border-radius: 10px;
-            border: 1px solid #333; min-height: 50px; word-break: break-all;
+            margin-top: 20px;
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            min-height: 50px;
+            word-break: break-all;
         }
-        #sheet-status {
-            margin-top: 10px; font-size: 13px; padding: 8px; border-radius: 6px;
-            background: #111; border: 1px solid #333;
+        canvas {
+            display: none;
         }
-        #cache-info {
-            margin-top: 8px; font-size: 11px; color: #666;
-        }
-        canvas { display: none; }
     </style>
 </head>
 <body>
@@ -71,188 +117,97 @@
             <div id="val" style="color:#0f0; font-family:monospace; font-size:18px;">--- รอสแกน ---</div>
             <div id="msg" style="font-size:12px; margin-top:8px; color:#888;"></div>
         </div>
-
-        <div id="sheet-status">📋 กำลังโหลดข้อมูล...</div>
-        <div id="cache-info"></div>
-
-        <button id="refreshBtn" class="refresh-btn">🔄 รีเฟรชข้อมูลจาก Sheet</button>
     </div>
 
     <canvas id="c"></canvas>
 
     <script>
-        // ============================================
-        // ⚠️ ใส่ URL ของ Google Apps Script Web App ที่นี่
-        // ต้องลงท้ายด้วย /exec
-        // ============================================
-        const SHEET_URL = "https://script.google.com/macros/s/AKfycbxtkYneqO3Bd-qtCzyuBieYnz7f7CgxbzzycL5jn31uORbN1jy_Tymxm5RLN_4I_RtZHQ/exec";
-
-        const v = document.getElementById('v');
-        const c = document.getElementById('c');
-        const zoomInp = document.getElementById('zoom');
+        const video = document.getElementById('v');
+        const canvas = document.getElementById('c');
+        const zoomInput = document.getElementById('zoom');
         const valBox = document.getElementById('val');
         const msgBox = document.getElementById('msg');
-        const sheetStatus = document.getElementById('sheet-status');
-        const cacheInfo = document.getElementById('cache-info');
-        const refreshBtn = document.getElementById('refreshBtn');
-        let track = null;
-        let awdnCache = new Set();
+        const snapBtn = document.getElementById('snap');
 
-        navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment", width: 1920, height: 1080 } 
-        }).then(s => {
-            v.srcObject = s;
-            track = s.getVideoTracks()[0];
+        let track = null;
+
+        // เริ่มกล้อง + ตั้งค่าซูมตาม capability ของกล้อง
+        navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment", width: 1920, height: 1080 }
+        }).then(stream => {
+            video.srcObject = stream;
+            track = stream.getVideoTracks()[0];
             const caps = track.getCapabilities();
             if (caps.zoom) {
-                zoomInp.min = caps.zoom.min;
-                zoomInp.max = caps.zoom.max;
-                zoomInp.step = caps.zoom.step;
-                zoomInp.value = 1;
+                zoomInput.min = caps.zoom.min;
+                zoomInput.max = caps.zoom.max;
+                zoomInput.step = caps.zoom.step;
+                zoomInput.value = 1;
             }
         });
 
-        zoomInp.oninput = () => {
-            if (track) track.applyConstraints({ advanced: [{ zoom: zoomInp.value }] });
+        zoomInput.oninput = () => {
+            if (track) {
+                track.applyConstraints({ advanced: [{ zoom: zoomInput.value }] });
+            }
         };
 
+        // แปลง IMEI (decimal) → AWDN_<HEX 6 bytes>
         function convertToAWDN(imei) {
             try {
                 let n = BigInt(imei);
-                let b = new Uint8Array(6);
-                for(let i=0; i<6; i++) b[i] = Number((n >> BigInt((5-i)*8)) & 0xFFn);
-                return "AWDN_" + Array.from(b).map(x => x.toString(16).toUpperCase().padStart(2,'0')).join('');
-            } catch(e) { return null; }
-        }
-
-        async function loadAwdnList() {
-            try {
-                const url = SHEET_URL 
-                    + "?action=list"
-                    + "&t=" + Date.now()
-                    + "&r=" + Math.random().toString(36).slice(2);
-                const res = await fetch(url, { cache: 'reload' });
-                const data = await res.json();
-                
-                if (data.ok && Array.isArray(data.list)) {
-                    awdnCache = new Set(data.list);
-                    cacheInfo.innerHTML = "📊 มีข้อมูลในชีท " + awdnCache.size + " รายการ";
-                    return true;
+                let bytes = new Uint8Array(6);
+                for (let i = 0; i < 6; i++) {
+                    bytes[i] = Number((n >> BigInt((5 - i) * 8)) & 0xFFn);
                 }
-            } catch (err) {}
-            return false;
-        }
-
-        async function initLoad() {
-            sheetStatus.innerHTML = "⏳ กำลังโหลดข้อมูลจาก Sheet...";
-            sheetStatus.style.color = "#888";
-            const ok = await loadAwdnList();
-            if (ok) {
-                sheetStatus.innerHTML = "✅ พร้อมสแกน";
-                sheetStatus.style.color = "#0f0";
-            } else {
-                sheetStatus.innerHTML = "⚠️ โหลดข้อมูลเดิมไม่สำเร็จ";
-                sheetStatus.style.color = "#ff9800";
+                return "AWDN_" + Array.from(bytes)
+                    .map(x => x.toString(16).toUpperCase().padStart(2, '0'))
+                    .join('');
+            } catch (e) {
+                return null;
             }
         }
 
-        // ส่งข้อมูลด้วย fetch POST + text/plain (simple request, ไม่ trigger preflight)
-        // วิธีนี้ทำงานบน iOS เพราะเป็น CORS simple request
-        async function sendToSheet(imei, awdn) {
-            const body = JSON.stringify({ imei: imei, awdn: awdn });
-            
-            // text/plain เป็น simple request → iOS ไม่บล็อก preflight
-            const res = await fetch(SHEET_URL, {
-                method: 'POST',
-                mode: 'no-cors',  // ไม่ต้องอ่าน response กลับ
-                headers: {
-                    'Content-Type': 'text/plain;charset=utf-8'
-                },
-                body: body,
-                cache: 'no-store',
-                redirect: 'follow'  // follow Apps Script redirect
-            });
-            
-            // no-cors ไม่ throw และอ่าน response ไม่ได้
-            // แต่ request จะส่งถึง Apps Script จริง
-        }
-
-        document.getElementById('snap').onclick = async () => {
+        snapBtn.onclick = () => {
             valBox.innerText = "กำลังประมวลผล...";
             valBox.style.color = "#888";
             msgBox.innerText = "";
 
-            const ctx = c.getContext('2d', {willReadFrequently: true});
-            c.width = v.videoWidth;
-            c.height = v.videoHeight;
-            ctx.drawImage(v, 0, 0);
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
 
-            const scanSize = Math.min(c.width, c.height) * 0.5;
-            const sx = (c.width - scanSize) / 2;
-            const sy = (c.height - scanSize) / 2;
-            
+            // สแกนเฉพาะกรอบกลางภาพ (50% ของขนาดสั้นสุด)
+            const scanSize = Math.min(canvas.width, canvas.height) * 0.5;
+            const sx = (canvas.width - scanSize) / 2;
+            const sy = (canvas.height - scanSize) / 2;
+
             const imgData = ctx.getImageData(sx, sy, scanSize, scanSize);
-            const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
+            const code = jsQR(imgData.data, imgData.width, imgData.height, {
+                inversionAttempts: "dontInvert"
+            });
 
-            if (code) {
-                const match = code.data.match(/IMEI:(\d+);/);
-                if (match) {
-                    const imei = match[1];
-                    const res = convertToAWDN(imei);
-                    valBox.innerText = res;
-                    valBox.style.color = "#0f0";
-                    navigator.clipboard.writeText(res);
-                    msgBox.innerText = "✅ คัดลอกแล้ว (IMEI: " + imei + ")";
-
-                    if (awdnCache.has(res)) {
-                        sheetStatus.innerHTML = "⚠️ AWDN นี้มีในชีทแล้ว ไม่บันทึกซ้ำ";
-                        sheetStatus.style.color = "#ff9800";
-                        return;
-                    }
-
-                    sheetStatus.innerHTML = "⏳ กำลังบันทึก...";
-                    sheetStatus.style.color = "#888";
-                    
-                    try {
-                        await sendToSheet(imei, res);
-                        
-                        // รอ Sheet sync แล้ว verify ด้วยการโหลด list ใหม่
-                        sheetStatus.innerHTML = "⏳ กำลังตรวจสอบ...";
-                        await new Promise(r => setTimeout(r, 2000));
-                        await loadAwdnList();
-                        
-                        if (awdnCache.has(res)) {
-                            sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ (ยืนยันแล้ว)";
-                            sheetStatus.style.color = "#0f0";
-                        } else {
-                            // เพิ่มเข้า cache อยู่ดี (อาจ verify ไม่ทันเพราะ cache)
-                            awdnCache.add(res);
-                            sheetStatus.innerHTML = "⚠️ ส่งแล้ว แต่ verify ไม่ได้ - ลองกดรีเฟรช";
-                            sheetStatus.style.color = "#ff9800";
-                        }
-                    } catch (err) {
-                        sheetStatus.innerHTML = "❌ Error: " + err.message;
-                        sheetStatus.style.color = "#f44";
-                    }
-                } else {
-                    valBox.innerText = "--- ไม่พบ IMEI ---";
-                    msgBox.innerText = "🔍 พบ QR แต่ไม่มีข้อมูล IMEI ตามรูปแบบที่กำหนด";
-                }
-            } else {
+            if (!code) {
                 valBox.innerText = "--- สแกนไม่สำเร็จ ---";
                 msgBox.innerText = "❌ ภาพยังไม่ชัด หรือ QR ไม่อยู่ในกรอบ\nลองถอยห่างอีกนิดแล้วใช้แถบซูมช่วย";
+                return;
             }
-        };
 
-        refreshBtn.onclick = async () => {
-            sheetStatus.innerHTML = "⏳ กำลังรีเฟรช...";
-            sheetStatus.style.color = "#888";
-            const ok = await loadAwdnList();
-            sheetStatus.innerHTML = ok ? "✅ รีเฟรชสำเร็จ" : "❌ รีเฟรชไม่สำเร็จ";
-            sheetStatus.style.color = ok ? "#0f0" : "#f44";
+            const match = code.data.match(/IMEI:(\d+);/);
+            if (!match) {
+                valBox.innerText = "--- ไม่พบ IMEI ---";
+                msgBox.innerText = "🔍 พบ QR แต่ไม่มีข้อมูล IMEI ตามรูปแบบที่กำหนด";
+                return;
+            }
+
+            const imei = match[1];
+            const awdn = convertToAWDN(imei);
+            valBox.innerText = awdn;
+            valBox.style.color = "#0f0";
+            navigator.clipboard.writeText(awdn);
+            msgBox.innerText = "✅ คัดลอกแล้ว (IMEI: " + imei + ")";
         };
-        
-        initLoad();
     </script>
 </body>
 </html>
