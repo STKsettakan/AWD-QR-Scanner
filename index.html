@@ -40,7 +40,6 @@
             margin-top: 8px; font-size: 11px; color: #666;
         }
         canvas { display: none; }
-        #hiddenFrame { display: none; }
     </style>
 </head>
 <body>
@@ -80,15 +79,6 @@
 
     <canvas id="c"></canvas>
 
-    <iframe id="hiddenFrame" name="hiddenFrame"></iframe>
-    
-    <!-- ใช้ method="GET" - iOS รองรับ navigation แบบนี้แน่นอน -->
-    <form id="submitForm" method="GET" target="hiddenFrame" action="">
-        <input type="hidden" name="imei" id="formImei">
-        <input type="hidden" name="awdn" id="formAwdn">
-        <input type="hidden" name="t" id="formT">
-    </form>
-
     <script>
         // ============================================
         // ⚠️ ใส่ URL ของ Google Apps Script Web App ที่นี่
@@ -104,8 +94,6 @@
         const sheetStatus = document.getElementById('sheet-status');
         const cacheInfo = document.getElementById('cache-info');
         const refreshBtn = document.getElementById('refreshBtn');
-        const submitForm = document.getElementById('submitForm');
-        const hiddenFrame = document.getElementById('hiddenFrame');
         let track = null;
         let awdnCache = new Set();
 
@@ -167,34 +155,25 @@
             }
         }
 
-        // ส่งข้อมูลด้วย form GET ลง hidden iframe
-        // iOS รองรับ navigation แบบนี้ 100%
-        function sendToSheet(imei, awdn) {
-            return new Promise((resolve, reject) => {
-                document.getElementById('formImei').value = imei;
-                document.getElementById('formAwdn').value = awdn;
-                document.getElementById('formT').value = Date.now();
-                submitForm.action = SHEET_URL;
-
-                let done = false;
-                const onLoad = () => {
-                    if (done) return;
-                    done = true;
-                    hiddenFrame.removeEventListener('load', onLoad);
-                    resolve();
-                };
-                hiddenFrame.addEventListener('load', onLoad);
-                
-                setTimeout(() => {
-                    if (!done) {
-                        done = true;
-                        hiddenFrame.removeEventListener('load', onLoad);
-                        reject(new Error("timeout"));
-                    }
-                }, 20000);
-                
-                submitForm.submit();
+        // ส่งข้อมูลด้วย fetch POST + text/plain (simple request, ไม่ trigger preflight)
+        // วิธีนี้ทำงานบน iOS เพราะเป็น CORS simple request
+        async function sendToSheet(imei, awdn) {
+            const body = JSON.stringify({ imei: imei, awdn: awdn });
+            
+            // text/plain เป็น simple request → iOS ไม่บล็อก preflight
+            const res = await fetch(SHEET_URL, {
+                method: 'POST',
+                mode: 'no-cors',  // ไม่ต้องอ่าน response กลับ
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8'
+                },
+                body: body,
+                cache: 'no-store',
+                redirect: 'follow'  // follow Apps Script redirect
             });
+            
+            // no-cors ไม่ throw และอ่าน response ไม่ได้
+            // แต่ request จะส่งถึง Apps Script จริง
         }
 
         document.getElementById('snap').onclick = async () => {
@@ -235,12 +214,23 @@
                     
                     try {
                         await sendToSheet(imei, res);
-                        awdnCache.add(res);
-                        sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ";
-                        sheetStatus.style.color = "#0f0";
-                        cacheInfo.innerHTML = "📊 มีข้อมูลในชีท " + awdnCache.size + " รายการ";
+                        
+                        // รอ Sheet sync แล้ว verify ด้วยการโหลด list ใหม่
+                        sheetStatus.innerHTML = "⏳ กำลังตรวจสอบ...";
+                        await new Promise(r => setTimeout(r, 2000));
+                        await loadAwdnList();
+                        
+                        if (awdnCache.has(res)) {
+                            sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ (ยืนยันแล้ว)";
+                            sheetStatus.style.color = "#0f0";
+                        } else {
+                            // เพิ่มเข้า cache อยู่ดี (อาจ verify ไม่ทันเพราะ cache)
+                            awdnCache.add(res);
+                            sheetStatus.innerHTML = "⚠️ ส่งแล้ว แต่ verify ไม่ได้ - ลองกดรีเฟรช";
+                            sheetStatus.style.color = "#ff9800";
+                        }
                     } catch (err) {
-                        sheetStatus.innerHTML = "❌ Timeout - ลองใหม่";
+                        sheetStatus.innerHTML = "❌ Error: " + err.message;
                         sheetStatus.style.color = "#f44";
                     }
                 } else {
