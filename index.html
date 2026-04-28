@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -38,7 +39,7 @@
 <body>
 
     <div style="padding: 15px; text-align: center;">
-        <h2 style="margin:0; color:var(--primary);">AWDN Precision Scan V1.1</h2>
+        <h2 style="margin:0; color:var(--primary);">AWDN Precision Scan</h2>
     </div>
 
     <div id="preview-wrap">
@@ -112,8 +113,9 @@
             } catch(e) { return null; }
         }
 
-        // ส่งข้อมูลขึ้น Google Sheet ด้วย no-cors เพื่อเลี่ยงปัญหา redirect
-        async function sendToSheet(imei, awdn) {
+        // ส่งข้อมูลขึ้น Google Sheet ด้วย Image trick
+        // วิธีนี้ browser จะ follow redirect ครบถ้วน และรอ Apps Script ทำงานเสร็จจริง
+        function sendToSheet(imei, awdn) {
             if (!SHEET_URL || SHEET_URL.includes("XXXXXX")) {
                 sheetStatus.innerHTML = "⚠️ ยังไม่ได้ตั้งค่า SHEET_URL";
                 sheetStatus.style.color = "#ff9800";
@@ -123,22 +125,37 @@
             sheetStatus.innerHTML = "⏳ กำลังบันทึกลง Sheet...";
             sheetStatus.style.color = "#888";
 
-            try {
-                const url = SHEET_URL 
-                    + "?imei=" + encodeURIComponent(imei) 
-                    + "&awdn=" + encodeURIComponent(awdn);
-                
-                // ใช้ no-cors เพื่อเลี่ยงปัญหา redirect ของ Apps Script
-                await fetch(url, { method: 'GET', mode: 'no-cors' });
-                
-                // no-cors อ่าน response ไม่ได้ แต่ถ้าไม่ throw = ส่งถึงแล้ว
-                sheetStatus.innerHTML = "✅ ส่งข้อมูลแล้ว (เช็ค Sheet เพื่อยืนยัน)";
+            const url = SHEET_URL 
+                + "?imei=" + encodeURIComponent(imei) 
+                + "&awdn=" + encodeURIComponent(awdn)
+                + "&t=" + Date.now(); // กัน cache
+
+            const img = new Image();
+            let done = false;
+
+            const finish = () => {
+                if (done) return;
+                done = true;
+                sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ";
                 sheetStatus.style.color = "#0f0";
                 lastSentImei = imei;
-            } catch (err) {
-                sheetStatus.innerHTML = "❌ ส่งไม่สำเร็จ: " + err.message;
-                sheetStatus.style.color = "#f44";
-            }
+            };
+
+            // Apps Script ตอบ JSON ไม่ใช่รูป → onerror จะ fire 
+            // แต่ตอนนั้น Apps Script ได้บันทึกข้อมูลเสร็จแล้ว
+            img.onerror = finish;
+            img.onload = finish;
+
+            // timeout กันค้าง 15 วินาที
+            setTimeout(() => {
+                if (!done) {
+                    done = true;
+                    sheetStatus.innerHTML = "⚠️ ส่งช้าผิดปกติ - เช็ค Sheet เพื่อยืนยัน";
+                    sheetStatus.style.color = "#ff9800";
+                }
+            }, 15000);
+
+            img.src = url;
         }
 
         document.getElementById('snap').onclick = () => {
