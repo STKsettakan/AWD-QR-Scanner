@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -112,7 +113,7 @@
             } catch(e) { return null; }
         }
 
-        // ส่งข้อมูลขึ้น Google Sheet (ใช้ FormData เลี่ยง CORS preflight)
+        // ส่งข้อมูลขึ้น Google Sheet ด้วย GET request (เลี่ยง CORS)
         async function sendToSheet(imei, awdn) {
             if (!SHEET_URL || SHEET_URL.includes("XXXXXX")) {
                 sheetStatus.innerHTML = "⚠️ ยังไม่ได้ตั้งค่า SHEET_URL";
@@ -124,15 +125,13 @@
             sheetStatus.style.color = "#888";
 
             try {
-                const formData = new FormData();
-                formData.append('imei', imei);
-                formData.append('awdn', awdn);
-
-                const res = await fetch(SHEET_URL, {
-                    method: 'POST',
-                    body: formData
-                });
+                const url = SHEET_URL 
+                    + "?imei=" + encodeURIComponent(imei) 
+                    + "&awdn=" + encodeURIComponent(awdn);
+                
+                const res = await fetch(url, { method: 'GET' });
                 const data = await res.json();
+                
                 if (data.ok) {
                     sheetStatus.innerHTML = "✅ บันทึกลง Sheet สำเร็จ";
                     sheetStatus.style.color = "#0f0";
