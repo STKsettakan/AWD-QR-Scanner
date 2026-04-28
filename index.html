@@ -3,63 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>AWDN Scan Pro</title>
+    <title>AWDN Precision Scan</title>
     <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
     <style>
-        :root { --primary: #007bff; --success: #28a745; --bg: #000; }
+        :root { --primary: #007bff; --bg: #0b0b0b; --card: #1e1e1e; }
         body {
-            font-family: -apple-system, system-ui, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: var(--bg); color: white; margin: 0;
             display: flex; flex-direction: column; align-items: center; min-height: 100vh;
         }
         #preview-wrap {
             position: relative; width: 100%; max-width: 500px;
-            aspect-ratio: 1/1; overflow: hidden; background: #111;
+            aspect-ratio: 1/1; overflow: hidden; background: #000;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
         video { width: 100%; height: 100%; object-fit: cover; }
         
         .scanner-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 200px; height: 200px; border: 2px solid #00ff00;
-            border-radius: 15px; box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6);
+            width: 220px; height: 220px; border: 2px solid #00ff00;
+            border-radius: 16px; box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6);
             pointer-events: none;
         }
-        /* เส้นสแกนขยับได้ */
         .scanner-box::after {
             content: ""; position: absolute; width: 100%; height: 2px;
-            background: rgba(0, 255, 0, 0.5); top: 0; left: 0;
-            animation: scanLine 2.5s infinite ease-in-out;
+            background: rgba(0, 255, 0, 0.6); top: 0; left: 0;
+            animation: scan 2s infinite linear;
         }
-        @keyframes scanLine { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
 
         .ui-panel { width: 90%; max-width: 400px; padding: 20px 0; text-align: center; }
-        .instructions { font-size: 13px; color: #888; margin-bottom: 15px; line-height: 1.4; }
+        .instructions { font-size: 13px; color: #888; margin-bottom: 15px; }
         
-        input[type=range] { width: 100%; height: 40px; accent-color: var(--primary); cursor: pointer; }
+        input[type=range] { width: 100%; height: 35px; accent-color: var(--primary); margin: 10px 0; }
         
         button {
-            width: 100%; padding: 20px; font-size: 20px; font-weight: bold;
+            width: 100%; padding: 18px; font-size: 18px; font-weight: bold;
             background: var(--primary); color: white; border: none;
-            border-radius: 16px; cursor: pointer; transition: 0.2s;
+            border-radius: 12px; cursor: pointer; transition: 0.2s;
             -webkit-tap-highlight-color: transparent;
         }
-        button:active { transform: scale(0.96); opacity: 0.8; }
-        button:disabled { background: #333; cursor: not-allowed; }
+        button:active { transform: scale(0.98); opacity: 0.9; }
+        button:disabled { background: #444; color: #888; }
 
         #result-display {
-            margin-top: 20px; background: #151515; padding: 15px;
-            border-radius: 12px; border: 1px solid #222; min-height: 80px;
+            margin-top: 15px; background: var(--card); padding: 15px;
+            border-radius: 12px; border: 1px solid #333; text-align: center;
         }
-        #val { font-family: monospace; font-size: 24px; font-weight: bold; margin-bottom: 5px; }
-        #msg { font-size: 14px; color: #aaa; }
-        #time-log { font-size: 11px; color: #555; margin-top: 8px; }
+        #val { font-size: 24px; font-weight: bold; color: #00ff00; font-family: monospace; }
+        #msg { font-size: 14px; margin-top: 5px; color: #aaa; }
+        #time-log { font-size: 11px; color: #666; margin-top: 8px; }
         canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <div style="padding: 20px 10px; text-align: center;">
-        <h2 style="margin:0; color:var(--primary); letter-spacing: 1px;">AWDN PRECISION</h2>
+    <div style="padding: 20px 10px;">
+        <h2 style="margin:0; color:var(--primary); font-size: 22px;">AWDN Scanner</h2>
     </div>
 
     <div id="preview-wrap">
@@ -68,21 +68,18 @@
     </div>
 
     <div class="ui-panel">
-        <p class="instructions">
-            <b>ทริค:</b> ถอยห่าง 30 ซม. แล้วใช้ <b>"แถบซูม"</b> ขยายจนภาพชัด<br>
-            ระบบจะบันทึกลง Google Sheet อัตโนมัติเมื่อกดปุ่ม
-        </p>
+        <p class="instructions">ถอยห่าง 30 ซม. แล้วใช้ <b>"แถบซูม"</b> ขยายภาพให้เข้ากรอบ</p>
 
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
             <span style="font-size:12px; font-weight:bold;">ZOOM</span>
-            <input type="range" id="zoom" min="1" max="5" step="0.1" value="1">
+            <input type="range" id="zoom" min="1" max="1" step="0.1" value="1">
         </div>
 
-        <button id="snap">CAPTURE & SAVE</button>
+        <button id="snap">สแกนและบันทึก</button>
 
         <div id="result-display">
-            <div id="val" style="color:#444;">---</div>
-            <div id="msg">เตรียมพร้อมสแกน</div>
+            <div id="val">---</div>
+            <div id="msg">พร้อมใช้งาน</div>
             <div id="time-log"></div>
         </div>
     </div>
@@ -90,7 +87,7 @@
     <canvas id="c"></canvas>
 
     <script>
-        // *** วาง URL ของคุณที่นี่ ***
+        // 1. ใส่ URL ของ Apps Script ที่ได้จากการ Deploy (ต้องลงท้ายด้วย /exec)
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbziGDKazd7VVy6W298uLd7pynqa_FGmqrC0fX-zaQR81Xfi7TC1SNR7mA_IWiCnlMaoJA/exec";
 
         const video = document.getElementById('v');
@@ -103,28 +100,29 @@
 
         let track = null;
 
-        // เริ่มต้นกล้อง
-        async function startCamera() {
+        // เริ่มกล้อง
+        async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
                 });
                 video.srcObject = stream;
                 
                 track = stream.getVideoTracks()[0];
-                const caps = track.getCapabilities();
+                const caps = track.getCapabilities ? track.getCapabilities() : {};
                 if (caps.zoom) {
                     zoomInput.min = caps.zoom.min;
                     zoomInput.max = caps.zoom.max;
                     zoomInput.step = caps.zoom.step;
+                    zoomInput.value = 1;
                 }
             } catch (err) {
-                msgBox.innerHTML = "<span style='color:red;'>❌ เข้าถึงกล้องไม่ได้: " + err.message + "</span>";
+                msgBox.innerText = "❌ ไม่สามารถเข้าถึงกล้องได้: " + err.message;
             }
         }
 
         zoomInput.oninput = () => {
-            if (track && typeof track.applyConstraints === 'function') {
+            if (track && track.applyConstraints) {
                 track.applyConstraints({ advanced: [{ zoom: zoomInput.value }] });
             }
         };
@@ -143,9 +141,8 @@
         snapBtn.onclick = async () => {
             if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
-            // UI Feedback
-            valBox.innerText = "WAIT...";
-            valBox.style.color = "#888";
+            valBox.innerText = "...";
+            msgBox.innerText = "กำลังประมวลผล...";
             snapBtn.disabled = true;
 
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -153,7 +150,7 @@
             canvas.height = video.videoHeight;
             ctx.drawImage(video, 0, 0);
 
-            // สแกนเฉพาะบริเวณกรอบเขียว (ตรงกลาง)
+            // สแกนเฉพาะบริเวณกรอบกลาง (60% ของพื้นที่)
             const scanSize = Math.min(canvas.width, canvas.height) * 0.6;
             const sx = (canvas.width - scanSize) / 2;
             const sy = (canvas.height - scanSize) / 2;
@@ -168,35 +165,33 @@
                     const awdn = convertToAWDN(imei);
                     
                     valBox.innerText = awdn;
-                    valBox.style.color = "#0f0";
-                    msgBox.innerText = "☁️ กำลังบันทึกลง Sheet...";
+                    msgBox.innerText = "☁️ กำลังบันทึกลง Google Sheets...";
 
                     try {
-                        // ส่งข้อมูลไปยัง Google Apps Script
+                        // ส่งข้อมูลไปยัง Apps Script ด้วยรูปแบบ JSON
                         await fetch(SCRIPT_URL, {
                             method: "POST",
-                            mode: "no-cors",
+                            mode: "no-cors", // สำคัญมากสำหรับ Apps Script
+                            headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ imei: imei, awdn: awdn })
                         });
                         
-                        const now = new Date().toLocaleTimeString('th-TH');
                         msgBox.innerText = "✅ บันทึกสำเร็จ (IMEI: " + imei + ")";
-                        timeLog.innerText = "บันทึกล่าสุด: " + now;
+                        timeLog.innerText = "บันทึกล่าสุด: " + new Date().toLocaleTimeString('th-TH');
                         navigator.clipboard.writeText(awdn);
                     } catch (e) {
-                        msgBox.innerHTML = "<span style='color:orange;'>⚠️ ส่งข้อมูลล้มเหลว แต่สแกนติด</span>";
+                        msgBox.innerText = "⚠️ สแกนติด แต่บันทึกล้มเหลว: " + e.message;
                     }
                 }
             } else {
-                valBox.innerText = "NOT FOUND";
-                valBox.style.color = "#ff4444";
-                msgBox.innerText = "❌ ไม่พบ QR หรือภาพเบลอ ลองขยับ/ซูม";
+                valBox.innerText = "---";
+                msgBox.innerText = "❌ ไม่พบ QR หรือภาพไม่ชัด";
             }
             
             snapBtn.disabled = false;
         };
 
-        startCamera();
+        initCamera();
     </script>
 </body>
 </html>
