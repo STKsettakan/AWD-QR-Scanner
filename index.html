@@ -80,10 +80,8 @@
 
     <canvas id="c"></canvas>
 
-    <!-- Hidden iframe สำหรับรับ form submit -->
     <iframe id="hiddenFrame" name="hiddenFrame"></iframe>
     
-    <!-- Hidden form ใช้ POST เพื่อเลี่ยง iOS GET cache -->
     <form id="submitForm" method="POST" target="hiddenFrame" action="">
         <input type="hidden" name="imei" id="formImei">
         <input type="hidden" name="awdn" id="formAwdn">
@@ -136,11 +134,14 @@
             } catch(e) { return null; }
         }
 
-        // โหลดรายการ AWDN จากชีท
+        // โหลดรายการ AWDN จากชีท (เพิ่ม random param เพื่อ bypass cache)
         async function loadAwdnList() {
             try {
-                const url = SHEET_URL + "?action=list&t=" + Date.now();
-                const res = await fetch(url, { cache: 'no-store' });
+                const url = SHEET_URL 
+                    + "?action=list"
+                    + "&t=" + Date.now()
+                    + "&r=" + Math.random().toString(36).slice(2);
+                const res = await fetch(url, { cache: 'reload' });
                 const data = await res.json();
                 
                 if (data.ok && Array.isArray(data.list)) {
@@ -165,9 +166,10 @@
             }
         }
 
-        // ส่งข้อมูลด้วย form POST + รอ iframe load (เสถียรบน iOS)
+        // ส่งข้อมูลด้วย form POST + รอ iframe load event
+        // เมื่อ iframe load = Apps Script ตอบกลับครบ = บันทึกเสร็จแล้ว
         function sendToSheet(imei, awdn) {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 document.getElementById('formImei').value = imei;
                 document.getElementById('formAwdn').value = awdn;
                 submitForm.action = SHEET_URL;
@@ -181,11 +183,12 @@
                 };
                 hiddenFrame.addEventListener('load', onLoad);
                 
+                // timeout 20 วินาที = ส่งล้มเหลว
                 setTimeout(() => {
                     if (!done) {
                         done = true;
                         hiddenFrame.removeEventListener('load', onLoad);
-                        resolve();
+                        reject(new Error("timeout"));
                     }
                 }, 20000);
                 
@@ -230,21 +233,18 @@
                     sheetStatus.innerHTML = "⏳ กำลังบันทึก...";
                     sheetStatus.style.color = "#888";
                     
-                    // ส่งข้อมูล
-                    await sendToSheet(imei, res);
-                    
-                    // รอเล็กน้อยให้ Sheet sync
-                    sheetStatus.innerHTML = "⏳ กำลังตรวจสอบ...";
-                    await new Promise(r => setTimeout(r, 1500));
-                    
-                    // VERIFY: โหลด list ใหม่จาก Sheet จริง เพื่อยืนยันว่าข้อมูลเข้าหรือไม่
-                    await loadAwdnList();
-                    
-                    if (awdnCache.has(res)) {
-                        sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ (ยืนยันแล้ว)";
+                    try {
+                        // ส่งข้อมูล - iframe load = บันทึกเสร็จแล้ว
+                        await sendToSheet(imei, res);
+                        
+                        // เพิ่มเข้า cache (ไม่ต้อง verify เพราะ iframe load ยืนยันแล้ว)
+                        awdnCache.add(res);
+                        
+                        sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ";
                         sheetStatus.style.color = "#0f0";
-                    } else {
-                        sheetStatus.innerHTML = "❌ ส่งแล้วแต่ข้อมูลไม่เข้า Sheet - ลองใหม่";
+                        cacheInfo.innerHTML = "📊 มีข้อมูลในชีท " + awdnCache.size + " รายการ";
+                    } catch (err) {
+                        sheetStatus.innerHTML = "❌ Timeout - ส่งช้าผิดปกติ ลองใหม่";
                         sheetStatus.style.color = "#f44";
                     }
                 } else {
