@@ -72,6 +72,7 @@
     <script>
         // ============================================
         // ⚠️ ใส่ URL ของ Google Apps Script Web App ที่นี่
+        // ต้องลงท้ายด้วย /exec
         // ============================================
         const SHEET_URL = "https://script.google.com/macros/s/AKfycbxtkYneqO3Bd-qtCzyuBieYnz7f7CgxbzzycL5jn31uORbN1jy_Tymxm5RLN_4I_RtZHQ/exec";
 
@@ -111,7 +112,7 @@
             } catch(e) { return null; }
         }
 
-        // ส่งข้อมูลขึ้น Google Sheet
+        // ส่งข้อมูลขึ้น Google Sheet (ใช้ FormData เลี่ยง CORS preflight)
         async function sendToSheet(imei, awdn) {
             if (!SHEET_URL || SHEET_URL.includes("XXXXXX")) {
                 sheetStatus.innerHTML = "⚠️ ยังไม่ได้ตั้งค่า SHEET_URL";
@@ -123,10 +124,13 @@
             sheetStatus.style.color = "#888";
 
             try {
-                // ไม่ใส่ Content-Type เพื่อเลี่ยง CORS preflight
+                const formData = new FormData();
+                formData.append('imei', imei);
+                formData.append('awdn', awdn);
+
                 const res = await fetch(SHEET_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ imei: imei, awdn: awdn })
+                    body: formData
                 });
                 const data = await res.json();
                 if (data.ok) {
@@ -138,7 +142,7 @@
                     sheetStatus.style.color = "#f44";
                 }
             } catch (err) {
-                sheetStatus.innerHTML = "❌ ส่ง Sheet ไม่สำเร็จ: " + err.message;
+                sheetStatus.innerHTML = "❌ ส่งไม่สำเร็จ: " + err.message;
                 sheetStatus.style.color = "#f44";
             }
         }
