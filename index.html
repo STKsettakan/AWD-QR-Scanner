@@ -24,6 +24,10 @@
             box-shadow: 0 5px 20px rgba(0,123,255,0.4);
         }
         button:active { transform: scale(0.98); }
+        button.refresh-btn {
+            margin-top: 10px; padding: 10px; font-size: 14px;
+            background: #444; box-shadow: none;
+        }
         #result-display {
             margin-top: 20px; background: #1a1a1a; padding: 15px; border-radius: 10px;
             border: 1px solid #333; min-height: 50px; word-break: break-all;
@@ -31,6 +35,9 @@
         #sheet-status {
             margin-top: 10px; font-size: 13px; padding: 8px; border-radius: 6px;
             background: #111; border: 1px solid #333;
+        }
+        #cache-info {
+            margin-top: 8px; font-size: 11px; color: #666;
         }
         canvas { display: none; }
     </style>
@@ -64,7 +71,10 @@
             <div id="msg" style="font-size:12px; margin-top:8px; color:#888;"></div>
         </div>
 
-        <div id="sheet-status">📋 Sheet: รอข้อมูล</div>
+        <div id="sheet-status">📋 กำลังโหลดข้อมูล...</div>
+        <div id="cache-info"></div>
+
+        <button id="refreshBtn" class="refresh-btn">🔄 รีเฟรชข้อมูลจาก Sheet</button>
     </div>
 
     <canvas id="c"></canvas>
@@ -82,8 +92,12 @@
         const valBox = document.getElementById('val');
         const msgBox = document.getElementById('msg');
         const sheetStatus = document.getElementById('sheet-status');
+        const cacheInfo = document.getElementById('cache-info');
+        const refreshBtn = document.getElementById('refreshBtn');
         let track = null;
-        let lastSentImei = null;
+        
+        // เก็บ AWDN ทั้งหมดในชีท + ที่เพิ่งสแกน เพื่อเช็คซ้ำฝั่ง client
+        let awdnCache = new Set();
 
         navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: "environment", width: 1920, height: 1080 } 
@@ -112,70 +126,57 @@
             } catch(e) { return null; }
         }
 
-        // ส่งข้อมูลขึ้น Google Sheet ด้วย JSONP เพื่ออ่านผลตอบกลับได้
-        function sendToSheet(imei, awdn) {
-            if (!SHEET_URL || SHEET_URL.includes("XXXXXX")) {
-                sheetStatus.innerHTML = "⚠️ ยังไม่ได้ตั้งค่า SHEET_URL";
-                sheetStatus.style.color = "#ff9800";
-                return;
-            }
-
-            sheetStatus.innerHTML = "⏳ กำลังเช็คและบันทึก...";
+        // โหลดรายการ AWDN ที่มีอยู่แล้วในชีท (ใช้ตอนเปิดแอปและตอนกดรีเฟรช)
+        async function loadAwdnList() {
+            sheetStatus.innerHTML = "⏳ กำลังโหลดข้อมูลจาก Sheet...";
             sheetStatus.style.color = "#888";
-
-            // สร้างชื่อ callback function ไม่ซ้ำ
-            const callbackName = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-            let timeoutId;
-            const script = document.createElement('script');
-
-            const cleanup = () => {
-                if (timeoutId) clearTimeout(timeoutId);
-                if (window[callbackName]) delete window[callbackName];
-                if (script.parentNode) script.parentNode.removeChild(script);
-            };
-
-            // function ที่ Apps Script จะเรียกเมื่อตอบกลับ
-            window[callbackName] = function(data) {
-                cleanup();
-                if (data.duplicate) {
-                    sheetStatus.innerHTML = "⚠️ AWDN นี้มีในชีทแล้ว ไม่บันทึกซ้ำ";
-                    sheetStatus.style.color = "#ff9800";
-                    lastSentImei = imei;
-                } else if (data.ok) {
-                    sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ";
+            
+            try {
+                const url = SHEET_URL + "?action=list&t=" + Date.now();
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data.ok && Array.isArray(data.list)) {
+                    awdnCache = new Set(data.list);
+                    sheetStatus.innerHTML = "✅ พร้อมสแกน";
                     sheetStatus.style.color = "#0f0";
-                    lastSentImei = imei;
+                    cacheInfo.innerHTML = "📊 มีข้อมูลในชีท " + awdnCache.size + " รายการ";
                 } else {
-                    sheetStatus.innerHTML = "❌ Error: " + (data.error || "unknown");
-                    sheetStatus.style.color = "#f44";
+                    throw new Error("ข้อมูลไม่ถูกต้อง");
                 }
-            };
-
-            const url = SHEET_URL 
-                + "?imei=" + encodeURIComponent(imei) 
-                + "&awdn=" + encodeURIComponent(awdn)
-                + "&callback=" + callbackName;
-
-            script.src = url;
-            script.onerror = () => {
-                cleanup();
-                sheetStatus.innerHTML = "❌ ส่งไม่สำเร็จ - network error";
-                sheetStatus.style.color = "#f44";
-            };
-
-            // timeout กันค้าง 20 วินาที
-            timeoutId = setTimeout(() => {
-                if (window[callbackName]) {
-                    cleanup();
-                    sheetStatus.innerHTML = "⚠️ Timeout - เช็ค Sheet เพื่อยืนยัน";
-                    sheetStatus.style.color = "#ff9800";
-                }
-            }, 20000);
-
-            document.head.appendChild(script);
+            } catch (err) {
+                sheetStatus.innerHTML = "⚠️ โหลดข้อมูลเดิมไม่สำเร็จ - จะตรวจซ้ำได้เฉพาะรอบนี้";
+                sheetStatus.style.color = "#ff9800";
+                cacheInfo.innerHTML = "";
+            }
         }
 
-        document.getElementById('snap').onclick = () => {
+        // ส่งข้อมูลขึ้น Sheet ด้วย Image trick (เสถียรบน iOS)
+        function sendToSheet(imei, awdn) {
+            return new Promise((resolve) => {
+                const url = SHEET_URL 
+                    + "?imei=" + encodeURIComponent(imei) 
+                    + "&awdn=" + encodeURIComponent(awdn)
+                    + "&t=" + Date.now();
+                
+                const img = new Image();
+                let done = false;
+                
+                const finish = () => {
+                    if (done) return;
+                    done = true;
+                    resolve();
+                };
+                
+                img.onerror = finish;
+                img.onload = finish;
+                setTimeout(finish, 15000);
+                
+                img.src = url;
+            });
+        }
+
+        document.getElementById('snap').onclick = async () => {
             valBox.innerText = "กำลังประมวลผล...";
             valBox.style.color = "#888";
             msgBox.innerText = "";
@@ -200,14 +201,23 @@
                     valBox.innerText = res;
                     valBox.style.color = "#0f0";
                     navigator.clipboard.writeText(res);
-                    msgBox.innerText = "✅ สำเร็จ! คัดลอกแล้ว (IMEI: " + imei + ")";
+                    msgBox.innerText = "✅ คัดลอกแล้ว (IMEI: " + imei + ")";
 
-                    // ส่งขึ้น Sheet (Apps Script จะเช็คซ้ำเอง)
-                    if (imei === lastSentImei) {
-                        sheetStatus.innerHTML = "ℹ️ IMEI นี้เพิ่งส่งไปแล้ว ไม่ส่งซ้ำ";
+                    // เช็คซ้ำจาก cache ฝั่ง client (เร็ว, ไม่ต้องรอเน็ต)
+                    if (awdnCache.has(res)) {
+                        sheetStatus.innerHTML = "⚠️ AWDN นี้มีในชีทแล้ว ไม่บันทึกซ้ำ";
                         sheetStatus.style.color = "#ff9800";
                     } else {
-                        sendToSheet(imei, res);
+                        // ไม่ซ้ำ → บันทึกแล้วเพิ่มเข้า cache
+                        sheetStatus.innerHTML = "⏳ กำลังบันทึก...";
+                        sheetStatus.style.color = "#888";
+                        
+                        await sendToSheet(imei, res);
+                        awdnCache.add(res);
+                        
+                        sheetStatus.innerHTML = "✅ บันทึก Sheet สำเร็จ";
+                        sheetStatus.style.color = "#0f0";
+                        cacheInfo.innerHTML = "📊 มีข้อมูลในชีท " + awdnCache.size + " รายการ";
                     }
                 } else {
                     valBox.innerText = "--- ไม่พบ IMEI ---";
@@ -218,6 +228,11 @@
                 msgBox.innerText = "❌ ภาพยังไม่ชัด หรือ QR ไม่อยู่ในกรอบ\nลองถอยห่างอีกนิดแล้วใช้แถบซูมช่วย";
             }
         };
+
+        refreshBtn.onclick = loadAwdnList;
+        
+        // โหลดข้อมูลครั้งแรก
+        loadAwdnList();
     </script>
 </body>
 </html>
