@@ -367,7 +367,19 @@
                 let data;
                 try { data = JSON.parse(text); }
                 catch { return { ok: false, reason: 'ตอบกลับไม่ใช่ JSON' }; }
-                if (data.status === 'ok') return { ok: true };
+
+                if (data.status === 'ok') return { ok: true, sheet: data.sheet, row: data.row };
+
+                // duplicate: ไม่ถือว่า error ที่ต้อง retry — return แยก
+                if (data.status === 'duplicate') {
+                    return {
+                        ok: false,
+                        duplicate: true,
+                        sheet: data.sheet,
+                        row: data.row,
+                        existingTimestamp: data.existingTimestamp
+                    };
+                }
                 return { ok: false, reason: data.message || 'unknown' };
             } catch (err) {
                 return { ok: false, reason: err.message || 'network error' };
@@ -377,16 +389,18 @@
         // ส่งคิวที่ค้างทั้งหมด
         async function flushQueue() {
             const q = getQueue();
-            if (q.length === 0) return { sent: 0, failed: 0 };
+            if (q.length === 0) return { sent: 0, failed: 0, duplicates: 0 };
             const remaining = [];
             let sent = 0;
+            let duplicates = 0;
             for (const item of q) {
                 const r = await sendToSheet(item);
                 if (r.ok) sent++;
+                else if (r.duplicate) duplicates++; // ทิ้งจากคิว ไม่ retry
                 else remaining.push(item);
             }
             setQueue(remaining);
-            return { sent, failed: remaining.length };
+            return { sent, failed: remaining.length, duplicates };
         }
 
         // ===== ปุ่มสแกน =====
@@ -452,7 +466,7 @@
             const result = await sendToSheet(record);
 
             if (result.ok) {
-                sheetStatus.innerHTML = '<span style="color:#0f0;">✅ บันทึกลง Google Sheet แล้ว</span>';
+                sheetStatus.innerHTML = '<span style="color:#0f0;">✅ บันทึกลง Sheet "' + (result.sheet || '?') + '" แถวที่ ' + (result.row || '?') + '</span>';
                 // ลองส่งคิวที่ค้างต่อ ถ้ามี
                 const q = getQueue();
                 if (q.length > 0) {
@@ -460,7 +474,33 @@
                     if (flushed.sent > 0) {
                         sheetStatus.innerHTML += '<br><span style="color:#0f0;">+ ส่งคิวค้างเพิ่ม ' + flushed.sent + ' รายการ</span>';
                     }
+                    if (flushed.duplicates > 0) {
+                        sheetStatus.innerHTML += '<br><span style="color:#fa0;">+ คิวที่ซ้ำ ทิ้งไป ' + flushed.duplicates + ' รายการ</span>';
+                    }
                 }
+            } else if (result.duplicate) {
+                // ⚠️ ข้อมูลซ้ำ — ไม่บันทึก ไม่เข้าคิว
+                valBox.style.color = "#fa0";
+                valBox.innerText = "⚠️ ข้อมูลซ้ำ ไม่ได้บันทึก";
+                let dupTime = '';
+                if (result.existingTimestamp) {
+                    try {
+                        const t = new Date(result.existingTimestamp);
+                        if (!isNaN(t.getTime())) {
+                            dupTime = '<br>⏰ บันทึกเมื่อ: ' + t.toLocaleString('th-TH');
+                        }
+                    } catch {}
+                }
+                sheetStatus.innerHTML =
+                    '<div style="background:#3a2a00; padding:10px; border-radius:8px; border:1px solid #fa0;">' +
+                    '<b style="color:#fa0;">⚠️ พบข้อมูลซ้ำ — ไม่บันทึก</b><br>' +
+                    '<span style="color:#fc8;">IMEI: ' + imei + '</span><br>' +
+                    '<span style="color:#fff;">📋 มีอยู่แล้วใน Sheet: <b>"' + (result.sheet || '?') + '"</b></span><br>' +
+                    '<span style="color:#fff;">📍 ลำดับแถวที่: <b>' + (result.row || '?') + '</b></span>' +
+                    dupTime +
+                    '</div>';
+                // navigator.vibrate ใช้แจ้งเตือน (ถ้ามี)
+                if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
             } else {
                 // เก็บเข้าคิวเพื่อส่งใหม่ภายหลัง
                 const q = getQueue();
@@ -528,12 +568,11 @@
             retryBtn.innerText = 'กำลังส่ง...';
             const r = await flushQueue();
             retryBtn.disabled = false;
-            if (r.sent > 0) {
-                sheetStatus.innerHTML = '<span style="color:#0f0;">✅ ส่งคิวค้างได้ ' + r.sent + ' รายการ</span>';
-            }
-            if (r.failed > 0) {
-                sheetStatus.innerHTML += '<br><span style="color:#fa0;">⚠️ ยังเหลืออีก ' + r.failed + ' รายการ</span>';
-            }
+            const parts = [];
+            if (r.sent > 0) parts.push('<span style="color:#0f0;">✅ ส่งสำเร็จ ' + r.sent + '</span>');
+            if (r.duplicates > 0) parts.push('<span style="color:#fa0;">⚠️ ข้อมูลซ้ำ (ทิ้ง) ' + r.duplicates + '</span>');
+            if (r.failed > 0) parts.push('<span style="color:#f33;">❌ ค้างต่อ ' + r.failed + '</span>');
+            sheetStatus.innerHTML = parts.join('<br>') || '<span style="color:#888;">ไม่มีรายการในคิว</span>';
             updateQueueUI();
         };
 
