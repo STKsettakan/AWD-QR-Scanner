@@ -40,6 +40,7 @@
             margin-top: 8px; font-size: 11px; color: #666;
         }
         canvas { display: none; }
+        #hiddenFrame { display: none; }
     </style>
 </head>
 <body>
@@ -79,6 +80,16 @@
 
     <canvas id="c"></canvas>
 
+    <!-- Hidden iframe สำหรับรับการ submit form (เลี่ยงการ navigate หน้าหลัก) -->
+    <iframe id="hiddenFrame" name="hiddenFrame"></iframe>
+    
+    <!-- Hidden form สำหรับส่งข้อมูลไป Apps Script -->
+    <form id="submitForm" method="GET" target="hiddenFrame" action="">
+        <input type="hidden" name="imei" id="formImei">
+        <input type="hidden" name="awdn" id="formAwdn">
+        <input type="hidden" name="t" id="formT">
+    </form>
+
     <script>
         // ============================================
         // ⚠️ ใส่ URL ของ Google Apps Script Web App ที่นี่
@@ -94,9 +105,11 @@
         const sheetStatus = document.getElementById('sheet-status');
         const cacheInfo = document.getElementById('cache-info');
         const refreshBtn = document.getElementById('refreshBtn');
+        const submitForm = document.getElementById('submitForm');
+        const hiddenFrame = document.getElementById('hiddenFrame');
         let track = null;
         
-        // เก็บ AWDN ทั้งหมดในชีท + ที่เพิ่งสแกน เพื่อเช็คซ้ำฝั่ง client
+        // เก็บ AWDN ทั้งหมดในชีท เพื่อเช็คซ้ำฝั่ง client
         let awdnCache = new Set();
 
         navigator.mediaDevices.getUserMedia({ 
@@ -126,7 +139,7 @@
             } catch(e) { return null; }
         }
 
-        // โหลดรายการ AWDN ที่มีอยู่แล้วในชีท (ใช้ตอนเปิดแอปและตอนกดรีเฟรช)
+        // โหลดรายการ AWDN ที่มีอยู่แล้วในชีท
         async function loadAwdnList() {
             sheetStatus.innerHTML = "⏳ กำลังโหลดข้อมูลจาก Sheet...";
             sheetStatus.style.color = "#888";
@@ -145,34 +158,41 @@
                     throw new Error("ข้อมูลไม่ถูกต้อง");
                 }
             } catch (err) {
-                sheetStatus.innerHTML = "⚠️ โหลดข้อมูลเดิมไม่สำเร็จ - จะตรวจซ้ำได้เฉพาะรอบนี้";
+                sheetStatus.innerHTML = "⚠️ โหลดข้อมูลเดิมไม่สำเร็จ";
                 sheetStatus.style.color = "#ff9800";
                 cacheInfo.innerHTML = "";
             }
         }
 
-        // ส่งข้อมูลขึ้น Sheet ด้วย Image trick (เสถียรบน iOS)
+        // ส่งข้อมูลขึ้น Sheet ด้วย form submit ลง hidden iframe
+        // วิธีนี้ทำงานได้ทุก browser รวมถึง iOS Safari
         function sendToSheet(imei, awdn) {
             return new Promise((resolve) => {
-                const url = SHEET_URL 
-                    + "?imei=" + encodeURIComponent(imei) 
-                    + "&awdn=" + encodeURIComponent(awdn)
-                    + "&t=" + Date.now();
-                
-                const img = new Image();
+                document.getElementById('formImei').value = imei;
+                document.getElementById('formAwdn').value = awdn;
+                document.getElementById('formT').value = Date.now();
+                submitForm.action = SHEET_URL;
+
+                // รอจน iframe โหลดเสร็จ = Apps Script ประมวลผลเสร็จ
                 let done = false;
-                
-                const finish = () => {
+                const onLoad = () => {
                     if (done) return;
                     done = true;
+                    hiddenFrame.removeEventListener('load', onLoad);
                     resolve();
                 };
+                hiddenFrame.addEventListener('load', onLoad);
                 
-                img.onerror = finish;
-                img.onload = finish;
-                setTimeout(finish, 15000);
+                // timeout กันค้าง
+                setTimeout(() => {
+                    if (!done) {
+                        done = true;
+                        hiddenFrame.removeEventListener('load', onLoad);
+                        resolve();
+                    }
+                }, 15000);
                 
-                img.src = url;
+                submitForm.submit();
             });
         }
 
@@ -203,12 +223,11 @@
                     navigator.clipboard.writeText(res);
                     msgBox.innerText = "✅ คัดลอกแล้ว (IMEI: " + imei + ")";
 
-                    // เช็คซ้ำจาก cache ฝั่ง client (เร็ว, ไม่ต้องรอเน็ต)
+                    // เช็คซ้ำจาก cache ฝั่ง client
                     if (awdnCache.has(res)) {
                         sheetStatus.innerHTML = "⚠️ AWDN นี้มีในชีทแล้ว ไม่บันทึกซ้ำ";
                         sheetStatus.style.color = "#ff9800";
                     } else {
-                        // ไม่ซ้ำ → บันทึกแล้วเพิ่มเข้า cache
                         sheetStatus.innerHTML = "⏳ กำลังบันทึก...";
                         sheetStatus.style.color = "#888";
                         
