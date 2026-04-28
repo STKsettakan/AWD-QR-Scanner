@@ -3,63 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>AWDN Precision Scan</title>
+    <title>AWDN Scan Pro</title>
     <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
     <style>
-        :root { --primary: #007bff; --bg: #000; }
+        :root { --primary: #007bff; --success: #28a745; --bg: #000; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, system-ui, sans-serif;
             background: var(--bg); color: white; margin: 0;
             display: flex; flex-direction: column; align-items: center; min-height: 100vh;
         }
-        /* ปรับปรุง Preview ให้รองรับ Notch ของ iPhone */
         #preview-wrap {
             position: relative; width: 100%; max-width: 500px;
-            aspect-ratio: 1/1; overflow: hidden; background: #222;
+            aspect-ratio: 1/1; overflow: hidden; background: #111;
         }
         video { width: 100%; height: 100%; object-fit: cover; }
         
         .scanner-box {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 200px; height: 200px; border: 2px solid #00ff00;
-            border-radius: 12px; box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6);
+            border-radius: 15px; box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6);
             pointer-events: none;
         }
-        /* เพิ่มเส้นนำสายตา (Scanning Line) */
+        /* เส้นสแกนขยับได้ */
         .scanner-box::after {
             content: ""; position: absolute; width: 100%; height: 2px;
             background: rgba(0, 255, 0, 0.5); top: 0; left: 0;
-            animation: scan 2s infinite linear;
+            animation: scanLine 2.5s infinite ease-in-out;
         }
-        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        @keyframes scanLine { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
 
         .ui-panel { width: 90%; max-width: 400px; padding: 20px 0; text-align: center; }
-        .instructions { font-size: 13px; color: #aaa; margin-bottom: 15px; }
+        .instructions { font-size: 13px; color: #888; margin-bottom: 15px; line-height: 1.4; }
         
-        /* ปรับแต่ง Slider ให้ลากง่ายบนมือถือ */
-        input[type=range] { width: 100%; height: 40px; accent-color: var(--primary); }
+        input[type=range] { width: 100%; height: 40px; accent-color: var(--primary); cursor: pointer; }
         
         button {
-            width: 100%; padding: 18px; font-size: 18px; font-weight: bold;
+            width: 100%; padding: 20px; font-size: 20px; font-weight: bold;
             background: var(--primary); color: white; border: none;
-            border-radius: 15px; cursor: pointer;
-            -webkit-tap-highlight-color: transparent; /* ลบสีเทาเวลาจิ้มใน iOS */
+            border-radius: 16px; cursor: pointer; transition: 0.2s;
+            -webkit-tap-highlight-color: transparent;
         }
-        button:disabled { background: #444; }
+        button:active { transform: scale(0.96); opacity: 0.8; }
+        button:disabled { background: #333; cursor: not-allowed; }
 
         #result-display {
-            margin-top: 15px; background: #1a1a1a; padding: 15px;
-            border-radius: 10px; border: 1px solid #333;
+            margin-top: 20px; background: #151515; padding: 15px;
+            border-radius: 12px; border: 1px solid #222; min-height: 80px;
         }
-        #val { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
-        #time-log { font-size: 11px; color: #666; margin-top: 5px; }
+        #val { font-family: monospace; font-size: 24px; font-weight: bold; margin-bottom: 5px; }
+        #msg { font-size: 14px; color: #aaa; }
+        #time-log { font-size: 11px; color: #555; margin-top: 8px; }
         canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <div style="padding: 15px;">
-        <h2 style="margin:0; color:var(--primary); font-size: 20px;">AWDN Scanner v2</h2>
+    <div style="padding: 20px 10px; text-align: center;">
+        <h2 style="margin:0; color:var(--primary); letter-spacing: 1px;">AWDN PRECISION</h2>
     </div>
 
     <div id="preview-wrap">
@@ -68,18 +68,21 @@
     </div>
 
     <div class="ui-panel">
-        <p class="instructions">ถอยห่าง 30 ซม. แล้วใช้ <b>"แถบซูม"</b> ขยายภาพให้ชัด</p>
+        <p class="instructions">
+            <b>ทริค:</b> ถอยห่าง 30 ซม. แล้วใช้ <b>"แถบซูม"</b> ขยายจนภาพชัด<br>
+            ระบบจะบันทึกลง Google Sheet อัตโนมัติเมื่อกดปุ่ม
+        </p>
 
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-            <span style="font-size:12px;">ZOOM</span>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+            <span style="font-size:12px; font-weight:bold;">ZOOM</span>
             <input type="range" id="zoom" min="1" max="5" step="0.1" value="1">
         </div>
 
         <button id="snap">CAPTURE & SAVE</button>
 
         <div id="result-display">
-            <div id="val" style="color:#0f0;">--- READY ---</div>
-            <div id="msg" style="font-size:13px; color:#888;">กดปุ่มเพื่อเริ่มสแกน</div>
+            <div id="val" style="color:#444;">---</div>
+            <div id="msg">เตรียมพร้อมสแกน</div>
             <div id="time-log"></div>
         </div>
     </div>
@@ -87,7 +90,9 @@
     <canvas id="c"></canvas>
 
     <script>
-       const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbziGDKazd7VVy6W298uLd7pynqa_FGmqrC0fX-zaQR81Xfi7TC1SNR7mA_IWiCnlMaoJA/exec";
+        // *** วาง URL ของคุณที่นี่ ***
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbziGDKazd7VVy6W298uLd7pynqa_FGmqrC0fX-zaQR81Xfi7TC1SNR7mA_IWiCnlMaoJA/exec";
+
         const video = document.getElementById('v');
         const canvas = document.getElementById('c');
         const zoomInput = document.getElementById('zoom');
@@ -98,33 +103,23 @@
 
         let track = null;
 
-        // ฟังก์ชันเริ่มกล้องที่รองรับทั้ง iOS/Android
-        async function initCamera() {
+        // เริ่มต้นกล้อง
+        async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        facingMode: "environment",
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    }
+                    video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
                 });
                 video.srcObject = stream;
                 
-                // รอให้ Video โหลด metadata เพื่ออ่านค่า Zoom
-                video.onloadedmetadata = () => {
-                    track = stream.getVideoTracks()[0];
-                    const caps = track.getCapabilities();
-                    if (caps.zoom) {
-                        zoomInput.min = caps.zoom.min;
-                        zoomInput.max = caps.zoom.max;
-                        zoomInput.step = caps.zoom.step;
-                    } else {
-                        // ถ้าเครื่องไม่รองรับการคุมซูมผ่าน Software ให้ซ่อนตัวปรับ
-                        console.log("Zoom not supported");
-                    }
-                };
+                track = stream.getVideoTracks()[0];
+                const caps = track.getCapabilities();
+                if (caps.zoom) {
+                    zoomInput.min = caps.zoom.min;
+                    zoomInput.max = caps.zoom.max;
+                    zoomInput.step = caps.zoom.step;
+                }
             } catch (err) {
-                msgBox.innerText = "❌ เข้าถึงกล้องไม่ได้: " + err.message;
+                msgBox.innerHTML = "<span style='color:red;'>❌ เข้าถึงกล้องไม่ได้: " + err.message + "</span>";
             }
         }
 
@@ -148,7 +143,8 @@
         snapBtn.onclick = async () => {
             if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
-            valBox.innerText = "PROCESSING...";
+            // UI Feedback
+            valBox.innerText = "WAIT...";
             valBox.style.color = "#888";
             snapBtn.disabled = true;
 
@@ -157,7 +153,7 @@
             canvas.height = video.videoHeight;
             ctx.drawImage(video, 0, 0);
 
-            // สแกนเฉพาะบริเวณกรอบกลาง
+            // สแกนเฉพาะบริเวณกรอบเขียว (ตรงกลาง)
             const scanSize = Math.min(canvas.width, canvas.height) * 0.6;
             const sx = (canvas.width - scanSize) / 2;
             const sy = (canvas.height - scanSize) / 2;
@@ -173,9 +169,10 @@
                     
                     valBox.innerText = awdn;
                     valBox.style.color = "#0f0";
-                    msgBox.innerText = "☁️ กำลังบันทึกลงคลาวด์...";
+                    msgBox.innerText = "☁️ กำลังบันทึกลง Sheet...";
 
                     try {
+                        // ส่งข้อมูลไปยัง Google Apps Script
                         await fetch(SCRIPT_URL, {
                             method: "POST",
                             mode: "no-cors",
@@ -184,21 +181,22 @@
                         
                         const now = new Date().toLocaleTimeString('th-TH');
                         msgBox.innerText = "✅ บันทึกสำเร็จ (IMEI: " + imei + ")";
-                        timeLog.innerText = "Last Saved: " + now;
+                        timeLog.innerText = "บันทึกล่าสุด: " + now;
                         navigator.clipboard.writeText(awdn);
                     } catch (e) {
-                        msgBox.innerText = "⚠️ บันทึกไม่สำเร็จ แต่สแกนติดแล้ว";
+                        msgBox.innerHTML = "<span style='color:orange;'>⚠️ ส่งข้อมูลล้มเหลว แต่สแกนติด</span>";
                     }
                 }
             } else {
-                valBox.innerText = "--- FAIL ---";
-                msgBox.innerText = "❌ ไม่พบ QR หรือภาพไม่ชัด ลองซูมช่วย";
+                valBox.innerText = "NOT FOUND";
+                valBox.style.color = "#ff4444";
+                msgBox.innerText = "❌ ไม่พบ QR หรือภาพเบลอ ลองขยับ/ซูม";
             }
             
             snapBtn.disabled = false;
         };
 
-        initCamera();
+        startCamera();
     </script>
 </body>
 </html>
