@@ -28,6 +28,10 @@
             margin-top: 20px; background: #1a1a1a; padding: 15px; border-radius: 10px;
             border: 1px solid #333; min-height: 50px; word-break: break-all;
         }
+        #sheet-status {
+            margin-top: 10px; font-size: 13px; padding: 8px; border-radius: 6px;
+            background: #111; border: 1px solid #333;
+        }
         canvas { display: none; }
     </style>
 </head>
@@ -59,17 +63,26 @@
             <div id="val" style="color:#0f0; font-family:monospace; font-size:18px;">--- รอสแกน ---</div>
             <div id="msg" style="font-size:12px; margin-top:8px; color:#888;"></div>
         </div>
+
+        <div id="sheet-status">📋 Sheet: รอข้อมูล</div>
     </div>
 
     <canvas id="c"></canvas>
 
     <script>
+        // ============================================
+        // ⚠️ ใส่ URL ของ Google Apps Script Web App ที่นี่
+        // ============================================
+        const SHEET_URL = "https://script.google.com/macros/s/AKfycbxtkYneqO3Bd-qtCzyuBieYnz7f7CgxbzzycL5jn31uORbN1jy_Tymxm5RLN_4I_RtZHQ/exec";
+
         const v = document.getElementById('v');
         const c = document.getElementById('c');
         const zoomInp = document.getElementById('zoom');
         const valBox = document.getElementById('val');
         const msgBox = document.getElementById('msg');
+        const sheetStatus = document.getElementById('sheet-status');
         let track = null;
+        let lastSentImei = null; // ป้องกันส่งซ้ำเลขเดิม
 
         navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: "environment", width: 1920, height: 1080 } 
@@ -98,8 +111,39 @@
             } catch(e) { return null; }
         }
 
+        // ส่งข้อมูลขึ้น Google Sheet
+        async function sendToSheet(imei, awdn) {
+            if (!SHEET_URL || SHEET_URL.includes("XXXXXX")) {
+                sheetStatus.innerHTML = "⚠️ ยังไม่ได้ตั้งค่า SHEET_URL";
+                sheetStatus.style.color = "#ff9800";
+                return;
+            }
+
+            sheetStatus.innerHTML = "⏳ กำลังบันทึกลง Sheet...";
+            sheetStatus.style.color = "#888";
+
+            try {
+                // ไม่ใส่ Content-Type เพื่อเลี่ยง CORS preflight
+                const res = await fetch(SHEET_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ imei: imei, awdn: awdn })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    sheetStatus.innerHTML = "✅ บันทึกลง Sheet สำเร็จ";
+                    sheetStatus.style.color = "#0f0";
+                    lastSentImei = imei;
+                } else {
+                    sheetStatus.innerHTML = "❌ Sheet error: " + (data.error || "unknown");
+                    sheetStatus.style.color = "#f44";
+                }
+            } catch (err) {
+                sheetStatus.innerHTML = "❌ ส่ง Sheet ไม่สำเร็จ: " + err.message;
+                sheetStatus.style.color = "#f44";
+            }
+        }
+
         document.getElementById('snap').onclick = () => {
-            // Clear ข้อมูลเก่า
             valBox.innerText = "กำลังประมวลผล...";
             valBox.style.color = "#888";
             msgBox.innerText = "";
@@ -119,11 +163,20 @@
             if (code) {
                 const match = code.data.match(/IMEI:(\d+);/);
                 if (match) {
-                    const res = convertToAWDN(match[1]);
+                    const imei = match[1];
+                    const res = convertToAWDN(imei);
                     valBox.innerText = res;
                     valBox.style.color = "#0f0";
                     navigator.clipboard.writeText(res);
-                    msgBox.innerText = "✅ สำเร็จ! คัดลอกแล้ว (IMEI: " + match[1] + ")";
+                    msgBox.innerText = "✅ สำเร็จ! คัดลอกแล้ว (IMEI: " + imei + ")";
+
+                    // ส่งขึ้น Sheet (กันส่งซ้ำเลขเดิม)
+                    if (imei === lastSentImei) {
+                        sheetStatus.innerHTML = "ℹ️ IMEI นี้เพิ่งส่งไปแล้ว ไม่ส่งซ้ำ";
+                        sheetStatus.style.color = "#ff9800";
+                    } else {
+                        sendToSheet(imei, res);
+                    }
                 } else {
                     valBox.innerText = "--- ไม่พบ IMEI ---";
                     msgBox.innerText = "🔍 พบ QR แต่ไม่มีข้อมูล IMEI ตามรูปแบบที่กำหนด";
